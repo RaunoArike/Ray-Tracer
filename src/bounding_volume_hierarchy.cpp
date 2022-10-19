@@ -6,13 +6,97 @@
 #include "interpolate.h"
 #include <glm/glm.hpp>
 
+/* rootNodeHelper - Helper function to create the root node.
+*  Inputs:
+*   - pScene: pointer to the scene
+*   - indexes: vector of indexes that is stored by the root node, containing the mesh and index within the mesh for each triangle in the scene
+*   - x_low, x_high, y_low, y_high, z_low, z_high: variables that define the outer boundaries of the AABB.
+*  Outputs: None. The input variables will be updated to fit the scene.
+*/
+void rootNodeHelper(Scene* pScene, std::vector<int> & indexes, float & x_low, float & x_high, float & y_low, float & y_high, float & z_low, float & z_high) {
+    for (int i = 0; i < pScene->meshes.size(); ++i) {
+        Mesh mesh = pScene->meshes[i];
+        for (int j = 0; j < mesh.triangles.size(); ++j) {
+            indexes.push_back(i); // Mesh in the scene
+            indexes.push_back(j); // Triangle in mesh
 
-// Temporary edit
+            glm::uvec3 triangle = mesh.triangles[j];
+            std::vector<Vertex> vertices { mesh.vertices[triangle.x], mesh.vertices[triangle.y], mesh.vertices[triangle.z] };
+            for (int k = 0; k < 3; ++k) {
+                x_low = fmin(x_low, vertices[k].position.x);
+                x_high = fmax(x_high, vertices[k].position.x);
+                y_low = fmin(y_low, vertices[k].position.y);
+                y_high = fmax(y_high, vertices[k].position.y);
+                z_low = fmin(z_low, vertices[k].position.z);
+                z_high = fmax(z_high, vertices[k].position.z);
+            }
+        }
+    }
+}
+
+/* mergeSortBy - perform merge sort on a vector, changing the order of the other in the process.
+*  Inputs:
+*   - by: vector of size n to be sorted
+*   - A: vector of size n. If value x on position i in by gets assigned the new position j, the value at A[i] will also move to A[j]
+*/
+void mergeSortBy(std::vector<float> &by, std::vector<glm::uvec3> &A) {
+    assert(by.size() == A.size());
+}
+
+
+void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
+    if (this->nodes[nodeIndex].indexes.size() == 2 || recursionDepth >= this->maxLevels) {
+        /* Exit condition 1: the node contains vector entries for 1 mesh and 1 triangle (size of 2 entries)
+         * Exit condition 2: the tree is at its maximum recursion depth.
+         * In either case, the node is a leaf node.
+         */ 
+        if (recursionDepth > this->m_numLevels)
+            this->m_numLevels = recursionDepth;
+
+        this->m_numLeaves = this->m_numLeaves + 1;
+        this->nodes[nodeIndex].isParent = false;
+    } else {
+        // For nodes in the middle of the tree ...
+        Node thisNode = this->nodes[nodeIndex];
+
+        int dimension = recursionDepth % 3;             // 0 = x, 1 = y, 2 = z
+        std::vector<glm::uvec3> triangles;
+        std::vector<std::vector<Vertex>> vertices;
+        std::vector<float> means;
+
+        // Extract the center positions of the triangles along the dimension of interest.
+        for (int n = 0; n < this->nodes[nodeIndex].indexes.size() / 2; ++n) {
+            Mesh thisMesh = this->m_pScene->meshes[thisNode.indexes[2 * n]];
+            triangles[n] = thisMesh.triangles[thisNode.indexes[2*n+1]];
+            vertices[n][0] = thisMesh.vertices[triangles[n].x];
+            vertices[n][1] = thisMesh.vertices[triangles[n].y];
+            vertices[n][2] = thisMesh.vertices[triangles[n].z];
+            means[n] = (vertices[n][0].position[dimension] + vertices[n][1].position[dimension] + vertices[n][2].position[dimension]) / 3;
+                        // !!! For debugging: the line above uses position[dimension] to access .x,.y,.z Is this supposed to work?
+        }
+
+        // Sort the triangles vector using means.
+        mergeSortBy(means,triangles); // To be continued...
+    }
+}
 
 BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
     : m_pScene(pScene)
 {
-    // TODO: implement BVH construction.
+    // Create root node containing all triangles in the scene and an AABB for the entire scene, set to false to indicate it's a leaf node.
+    std::vector<int> indexes;
+    float x_low = std::numeric_limits<float>::infinity(), y_low=x_low, z_low=x_low;
+    float x_high = - std::numeric_limits<float>::infinity(), y_high=x_high, z_high=x_high;
+    rootNodeHelper(m_pScene, indexes, x_low, x_high, y_low, y_high, z_low, z_high);
+    Node root(true, x_low, x_high, y_low, y_high, z_low, z_high, indexes);
+
+    // Initialize the 0th layer of the BVH.
+    nodes = { root };
+    m_numLevels = 0;
+    m_numLeaves = 1;
+
+    // Recursively create the BVH.
+    growBVH(0,0);
 }
 
 // Return the depth of the tree that you constructed. This is used to tell the
