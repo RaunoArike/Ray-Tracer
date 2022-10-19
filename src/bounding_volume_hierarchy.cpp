@@ -7,6 +7,8 @@
 #include <glm/glm.hpp>
 
 
+// Temporary edit
+
 BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
     : m_pScene(pScene)
 {
