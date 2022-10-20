@@ -6,44 +6,136 @@
 #include "interpolate.h"
 #include <glm/glm.hpp>
 
+/* findBounds - Helper function to find boundaries of an AABB in the scene.
+*  Inputs:
+*   - pScene - pointer to the scene 
+*   - indexes - indexes array according to format [mesh0, triangle0, mesh1, triangle1, ...] as defined in the Node struct.
+*  Outputs:
+*   - bounds - 2D vector that holds the boundaries of the AABB.
+*/
+std::vector<std::vector<float>> findBounds(Scene* pScene, std::vector<int> indexes) {
+    // Definition, setting bounds to +- infinity for default.
+    std::vector<std::vector<float>> bounds = { { std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity() },
+        { std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity() },
+        { std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity() } };
+
+    // Iterate over indexes vector to find the vertices. Set the boundaries to the furthest vertex. 
+    int i = 0;
+    for (auto it = indexes.begin(); it != indexes.end(); ++it, ++i) {
+        Mesh mesh = pScene->meshes[*it];
+        ++it;
+        glm::uvec3 triangle = mesh.triangles[*it];
+        
+        std::vector<Vertex> vertices { mesh.vertices[triangle.x], mesh.vertices[triangle.y], mesh.vertices[triangle.z] };
+        for (int k = 0; k < 3; ++k) {
+            bounds[0][0] = fmin(bounds[0][0], vertices[k].position.x);                    /* This takes a lot of time with large datasets! */
+            bounds[0][1] = fmax(bounds[0][1], vertices[k].position.x);
+            bounds[1][0] = fmin(bounds[1][0], vertices[k].position.y);
+            bounds[1][1] = fmax(bounds[1][1], vertices[k].position.y);
+            bounds[2][0] = fmin(bounds[2][0], vertices[k].position.z);
+            bounds[2][1] = fmax(bounds[2][1], vertices[k].position.z);
+        }
+    }
+
+    return bounds;
+}
+
 /* rootNodeHelper - Helper function to create the root node.
 *  Inputs:
 *   - pScene: pointer to the scene
 *   - indexes: vector of indexes that is stored by the root node, containing the mesh and index within the mesh for each triangle in the scene
-*   - x_low, x_high, y_low, y_high, z_low, z_high: variables that define the outer boundaries of the AABB.
+*   - bounds: 2D vector that holds the boundaries of the AABB.
 *  Outputs: None. The input variables will be updated to fit the scene.
 */
-void rootNodeHelper(Scene* pScene, std::vector<int> & indexes, float & x_low, float & x_high, float & y_low, float & y_high, float & z_low, float & z_high) {
+void rootNodeHelper(Scene* pScene, std::vector<int> & indexes, std::vector<std::vector<float>> & bounds) {
     for (int i = 0; i < pScene->meshes.size(); ++i) {
         Mesh mesh = pScene->meshes[i];
         for (int j = 0; j < mesh.triangles.size(); ++j) {
             indexes.push_back(i); // Mesh in the scene
             indexes.push_back(j); // Triangle in mesh
+        }
+    }
+    bounds = findBounds(pScene, indexes);
+}
 
-            glm::uvec3 triangle = mesh.triangles[j];
-            std::vector<Vertex> vertices { mesh.vertices[triangle.x], mesh.vertices[triangle.y], mesh.vertices[triangle.z] };
-            for (int k = 0; k < 3; ++k) {
-                x_low = fmin(x_low, vertices[k].position.x);
-                x_high = fmax(x_high, vertices[k].position.x);
-                y_low = fmin(y_low, vertices[k].position.y);
-                y_high = fmax(y_high, vertices[k].position.y);
-                z_low = fmin(z_low, vertices[k].position.z);
-                z_high = fmax(z_high, vertices[k].position.z);
-            }
+/* merge - performs merging operation for merge sort.
+*  Inputs:
+*   - by - vector size n that indicates the order
+*   - byL, byR - vectors that are to be merged into by
+*   - A - vector size 2n that is sorted according to the order in by
+*   - aL, aR - vectors that are merged into A
+*  Outputs:
+*   None. Variables are passed by reference.
+*/
+void merge(std::vector<float> &by, std::vector<float>& byL, std::vector<float>& byR, std::vector<int> &A, std::vector<int>& aL, std::vector<int>& aR) {
+    // Scan through both lists after modification, selecting the smallest in order every time, changing the order of A accordingly. 
+    int i = 0, j = 0, k = 0;
+    while (i < byL.size() || j < byR.size()) {
+        if (i >= byL.size() || byR[j] < byL[i]) { // left vector has no members left or the right vector's next member is smaller than the left's
+            by[k] = byR[j]; // put means in order
+            A[2 * k] = aR[2 * j]; // put triangle meshes in order
+            A[2 * k + 1] = aR[2 * j + 1]; // put triangles within mesh in order
+            j++;
+            k++;
+        } else { // right vector has no members left or the left vector's next index is smaller than the right's
+            by[k] = byL[i];
+            A[2 * k] = aL[2 * i];
+            A[2 * k + 1] = aL[2 * i + 1];
+            i++;
+            k++;
         }
     }
 }
 
-/* mergeSortBy - perform merge sort on a vector, changing the order of the other in the process.
+/* mergeSortBy - perform merge sort in ascending direction on distance vector, changing the order of the indexes vector in the process.
 *  Inputs:
 *   - by: vector of size n to be sorted
-*   - A: vector of size n. If value x on position i in by gets assigned the new position j, the value at A[i] will also move to A[j]
+*   - A: vector of size 2n. If value x on position i in 'by' gets assigned the new position j, the values at A[2i,2i+1] will also move to A[2j,2j+1]
+*  Outputs:
+*   - None. The input vectors are passed by reference and are modified accordingly by the function.
 */
-void mergeSortBy(std::vector<float> &by, std::vector<glm::uvec3> &A) {
-    assert(by.size() == A.size());
+void mergeSortBy(std::vector<float> &by, std::vector<int> &A) {
+    assert(by.size() == A.size()*2);
+
+    if (!(by.size() <= 1)) {                // The function is not executed if array size <= 1 (=exit condition)
+        std::vector<float> byL;             // left split &by
+        std::vector<float> byR;             // right split &by
+        std::vector<int> aL;                // left split &A
+        std::vector<int> aR;                // right split &A
+
+        // Fill vectors with the means and indexes.
+        auto byIt = by.begin();
+        auto aIt = A.begin();
+        int i = 0;
+        for (i; i < by.size() / 2; ++i, ++byIt, ++aIt) {
+            byL.push_back(*byIt);
+            aL.push_back(*aIt);
+            ++aIt;
+            aL.push_back(*aIt);
+        }
+        for (i; i < by.size(); ++i, ++byIt, ++aIt) {
+            byR.push_back(*byIt);
+            aR.push_back(*aIt);
+            ++aIt;
+            aR.push_back(*aIt);
+        }
+
+        // Recursive call
+        mergeSortBy(byL, aL);
+        mergeSortBy(byR, aR);
+
+        // Merge
+        merge(by, byL, byR, A, aL, aR);
+    } 
 }
 
-
+/* growBVH - uses recursion to grow the bounding volume hierarchy
+*  Inputs: 
+*   - nodeIndex - index of the node in the nodes vector in the BVH
+*   - recursionDepth - depth of the current recursion step
+*  Outputs:
+*   - None. Modifies the attributes of the BVH to shape it 
+*/
 void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
     if (this->nodes[nodeIndex].indexes.size() == 2 || recursionDepth >= this->maxLevels) {
         /* Exit condition 1: the node contains vector entries for 1 mesh and 1 triangle (size of 2 entries)
@@ -58,6 +150,7 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
     } else {
         // For nodes in the middle of the tree ...
         Node thisNode = this->nodes[nodeIndex];
+        std::vector<int> indexes = thisNode.indexes;
 
         int dimension = recursionDepth % 3;             // 0 = x, 1 = y, 2 = z
         std::vector<glm::uvec3> triangles;
@@ -65,9 +158,9 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
         std::vector<float> means;
 
         // Extract the center positions of the triangles along the dimension of interest.
-        for (int n = 0; n < this->nodes[nodeIndex].indexes.size() / 2; ++n) {
-            Mesh thisMesh = this->m_pScene->meshes[thisNode.indexes[2 * n]];
-            triangles[n] = thisMesh.triangles[thisNode.indexes[2*n+1]];
+        for (int n = 0; n < indexes.size() / 2; ++n) {
+            Mesh thisMesh = this->m_pScene->meshes[indexes[2 * n]];
+            triangles[n] = thisMesh.triangles[indexes[2*n+1]];
             vertices[n][0] = thisMesh.vertices[triangles[n].x];
             vertices[n][1] = thisMesh.vertices[triangles[n].y];
             vertices[n][2] = thisMesh.vertices[triangles[n].z];
@@ -76,7 +169,42 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
         }
 
         // Sort the triangles vector using means.
-        mergeSortBy(means,triangles); // To be continued...
+        mergeSortBy(means,indexes);
+
+        // Find the median in the middle of the sorted list.
+        int medianIndex = means.size() / 2;
+        
+        // Split up the indexes vector for the left and right child node
+        std::vector<int> indexesL, indexesR;
+        int i = 0;
+        while (i <= medianIndex) {                      // Left node holds all lower triangles up to and including the median.
+            indexesL[2 * i] = indexes[2 * i];
+            indexesL[2 * i + 1] = indexes[2 * i + 1];
+            ++i;
+        }
+        while (i < means.size()) {                      // Right node takes the triangles higher than the median.
+            indexesR[2 * i] = indexes[2 * i];
+            indexesL[2 * i + 1] = indexes[2 * i + 1];
+            ++i;
+        }
+
+        // Set the other variables for the child nodes.
+        std::vector<std::vector<float>> boundsL = findBounds(this->m_pScene, indexesL);
+        std::vector<std::vector<float>> boundsR = findBounds(this->m_pScene, indexesR);
+
+        Node left = { true, boundsL, indexesL };
+        Node right = { true, boundsR, indexesR };
+
+        // Put the nodes in the node array of the BVH.
+        int leftIndex = this->nodes.size();
+        this->nodes.push_back(left);
+        this->nodes.push_back(right);
+
+        thisNode.indexes = { leftIndex, leftIndex + 1 };
+
+        // Recursive call for both child nodes.
+        this->growBVH(leftIndex, recursionDepth + 1);       // Left node
+        this->growBVH(leftIndex+1, recursionDepth + 1);     // Right node
     }
 }
 
@@ -85,18 +213,17 @@ BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
 {
     // Create root node containing all triangles in the scene and an AABB for the entire scene, set to false to indicate it's a leaf node.
     std::vector<int> indexes;
-    float x_low = std::numeric_limits<float>::infinity(), y_low=x_low, z_low=x_low;
-    float x_high = - std::numeric_limits<float>::infinity(), y_high=x_high, z_high=x_high;
-    rootNodeHelper(m_pScene, indexes, x_low, x_high, y_low, y_high, z_low, z_high);
-    Node root(true, x_low, x_high, y_low, y_high, z_low, z_high, indexes);
+    std::vector<std::vector<float>> bounds;
+    rootNodeHelper(m_pScene, indexes, bounds);
+    Node root(true, bounds, indexes);
 
     // Initialize the 0th layer of the BVH.
-    nodes = { root };
-    m_numLevels = 0;
-    m_numLeaves = 1;
+    this->nodes = { root };
+    this->m_numLevels = 0;
+    this->m_numLeaves = 1;
 
     // Recursively create the BVH.
-    growBVH(0,0);
+//    growBVH(0,0);
 }
 
 // Return the depth of the tree that you constructed. This is used to tell the
