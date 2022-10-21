@@ -6,6 +6,8 @@
 #include "interpolate.h"
 #include <glm/glm.hpp>
 
+#include <iostream>
+
 /* findBounds - Helper function to find boundaries of an AABB in the scene.
 *  Inputs:
 *   - pScene - pointer to the scene 
@@ -14,30 +16,50 @@
 *   - bounds - 2D vector that holds the boundaries of the AABB.
 */
 std::vector<std::vector<float>> findBounds(Scene* pScene, std::vector<int> indexes) {
+    assert(!(indexes.size() == 0));
+
     // Definition, setting bounds to +- infinity for default.
     std::vector<std::vector<float>> bounds = { { std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity() },
         { std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity() },
         { std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity() } };
 
-    // Iterate over indexes vector to find the vertices. Set the boundaries to the furthest vertex. 
+    // Adjust the boundaries by iterating over the triangles.
     int i = 0;
-    for (auto it = indexes.begin(); it != indexes.end(); ++it, ++i) {
-        Mesh mesh = pScene->meshes[*it];
+    int meshNo = *indexes.begin();                              // Current mesh number and copy of it.
+    Mesh mesh = pScene->meshes[meshNo];
+    for (auto it = indexes.begin(); it != indexes.end(); ++it,++i) {
+        // Reload the mesh data type if it's a new mesh. Prevents copying a lot of data in larger meshes.
+        if (*it != meshNo) {
+            meshNo = *it;
+            mesh = pScene->meshes[meshNo];
+        }
+
+        // Find the triangle within the mesh.
         ++it;
         glm::uvec3 triangle = mesh.triangles[*it];
-        
-        std::vector<Vertex> vertices { mesh.vertices[triangle.x], mesh.vertices[triangle.y], mesh.vertices[triangle.z] };
-        for (int k = 0; k < 3; ++k) {
-            bounds[0][0] = fmin(bounds[0][0], vertices[k].position.x);                    /* This takes a lot of time with large datasets! */
-            bounds[0][1] = fmax(bounds[0][1], vertices[k].position.x);
-            bounds[1][0] = fmin(bounds[1][0], vertices[k].position.y);
-            bounds[1][1] = fmax(bounds[1][1], vertices[k].position.y);
-            bounds[2][0] = fmin(bounds[2][0], vertices[k].position.z);
-            bounds[2][1] = fmax(bounds[2][1], vertices[k].position.z);
+
+        // Find the vertices that compose this triangle. Adjust the bounds according to the individual x,y,z values of this AABB.
+        for (int k = 0; k < 3; k++) {
+            Vertex v = mesh.vertices[triangle[k]];      
+
+            float x = v.position.x;
+            float y = v.position.y;
+            float z = v.position.z;
+
+            bounds[0][0] = fmin(bounds[0][0], x);
+            bounds[0][1] = fmax(bounds[0][1], x);
+            bounds[1][0] = fmin(bounds[1][0], y);
+            bounds[1][1] = fmax(bounds[1][1], y);
+            bounds[2][0] = fmin(bounds[2][0], z);
+            bounds[2][1] = fmax(bounds[2][1], z);
         }
     }
-
     return bounds;
+
+    /* Remaining problem with this function: it iterates over the indexes (=2*n_triangles) instead of the vertices, even though the 
+    *  vertices decide the final x,y,z values of the AABB, wasting time because the amount of triangles is larger than the amount of
+    *  vertices. 
+    */
 }
 
 /* rootNodeHelper - Helper function to create the root node.
@@ -68,22 +90,32 @@ void rootNodeHelper(Scene* pScene, std::vector<int> & indexes, std::vector<std::
 *   None. Variables are passed by reference.
 */
 void merge(std::vector<float> &by, std::vector<float>& byL, std::vector<float>& byR, std::vector<int> &A, std::vector<int>& aL, std::vector<int>& aR) {
-    // Scan through both lists after modification, selecting the smallest in order every time, changing the order of A accordingly. 
-    int i = 0, j = 0, k = 0;
-    while (i < byL.size() || j < byR.size()) {
-        if (i >= byL.size() || byR[j] < byL[i]) { // left vector has no members left or the right vector's next member is smaller than the left's
-            by[k] = byR[j]; // put means in order
-            A[2 * k] = aR[2 * j]; // put triangle meshes in order
-            A[2 * k + 1] = aR[2 * j + 1]; // put triangles within mesh in order
+    // Scan through both vectors after modification, selecting the smallest in order every time, changing the order of A accordingly. 
+    int i = 0, j = 0;
+    while (i < byL.size() && j < byR.size()) {
+        if (byR[j] < byL[i]) {
+            by.push_back(byR[j]);
+            A.push_back(aR[2 * j]);
+            A.push_back(aR[2 * j + 1]);
             j++;
-            k++;
-        } else { // right vector has no members left or the left vector's next index is smaller than the right's
-            by[k] = byL[i];
-            A[2 * k] = aL[2 * i];
-            A[2 * k + 1] = aL[2 * i + 1];
+        } else { 
+            by.push_back(byL[i]);
+            A.push_back(aL[2 * i]);
+            A.push_back(aL[2 * i + 1]);
             i++;
-            k++;
         }
+    }
+    while (i >= byL.size() && j < byR.size()) {
+        by.push_back(byR[j]);
+        A.push_back(aR[2 * j]);
+        A.push_back(aR[2 * j+1]);
+        j++;
+    }
+    while (i < byL.size() && j >= byR.size()) {
+        by.push_back(byL[i]);
+        A.push_back(aL[2 * i]);
+        A.push_back(aL[2 * i+1]);
+        i++;
     }
 }
 
@@ -95,7 +127,7 @@ void merge(std::vector<float> &by, std::vector<float>& byL, std::vector<float>& 
 *   - None. The input vectors are passed by reference and are modified accordingly by the function.
 */
 void mergeSortBy(std::vector<float> &by, std::vector<int> &A) {
-    assert(by.size() == A.size()*2);
+    assert(by.size() == A.size()/2);
 
     if (!(by.size() <= 1)) {                // The function is not executed if array size <= 1 (=exit condition)
         std::vector<float> byL;             // left split &by
@@ -103,22 +135,24 @@ void mergeSortBy(std::vector<float> &by, std::vector<int> &A) {
         std::vector<int> aL;                // left split &A
         std::vector<int> aR;                // right split &A
 
-        // Fill vectors with the means and indexes.
-        auto byIt = by.begin();
-        auto aIt = A.begin();
-        int i = 0;
-        for (i; i < by.size() / 2; ++i, ++byIt, ++aIt) {
-            byL.push_back(*byIt);
-            aL.push_back(*aIt);
-            ++aIt;
-            aL.push_back(*aIt);
+        // Put the means and indexes of the vectors into the left and right subvectors.
+        // Erase by and A in the process
+        int half = by.size() / 2;
+        for (int i = 0; i < by.size(); ++i)
+        {
+            if (i < half) {
+                byL.push_back(by[i]);
+                aL.push_back(A[2 * i]);
+                aL.push_back(A[2 * i + 1]);
+            } else {
+                byR.push_back(by[i]);
+                aR.push_back(A[2 * i]);
+                aR.push_back(A[2 * i + 1]);
+            }
         }
-        for (i; i < by.size(); ++i, ++byIt, ++aIt) {
-            byR.push_back(*byIt);
-            aR.push_back(*aIt);
-            ++aIt;
-            aR.push_back(*aIt);
-        }
+        // Empty by and A 
+        by.clear();
+        A.clear();
 
         // Recursive call
         mergeSortBy(byL, aL);
@@ -149,7 +183,7 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
         this->nodes[nodeIndex].isParent = false;
     } else {
         // For nodes in the middle of the tree ...
-        Node thisNode = this->nodes[nodeIndex];
+        Node thisNode = this->nodes[nodeIndex];          // Pass by reference !
         std::vector<int> indexes = thisNode.indexes;
 
         int dimension = recursionDepth % 3;             // 0 = x, 1 = y, 2 = z
@@ -158,13 +192,17 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
         std::vector<float> means;
 
         // Extract the center positions of the triangles along the dimension of interest.
+        int meshNo = indexes[0];
+        Mesh thisMesh = this->m_pScene->meshes[meshNo];
         for (int n = 0; n < indexes.size() / 2; ++n) {
-            Mesh thisMesh = this->m_pScene->meshes[indexes[2 * n]];
-            triangles[n] = thisMesh.triangles[indexes[2*n+1]];
-            vertices[n][0] = thisMesh.vertices[triangles[n].x];
-            vertices[n][1] = thisMesh.vertices[triangles[n].y];
-            vertices[n][2] = thisMesh.vertices[triangles[n].z];
-            means[n] = (vertices[n][0].position[dimension] + vertices[n][1].position[dimension] + vertices[n][2].position[dimension]) / 3;
+            if (indexes[2*n] != meshNo)                                         // Load new mesh iff the index at 2n points to a new one. Spares a lot of time copying data.
+                Mesh thisMesh = this->m_pScene->meshes[indexes[2 * n]];
+
+            triangles.push_back(thisMesh.triangles[indexes[2*n+1]]);
+            vertices.push_back({ thisMesh.vertices[triangles[n].x], 
+                                 thisMesh.vertices[triangles[n].y], 
+                                 thisMesh.vertices[triangles[n].z] });
+            means.push_back((vertices[n][0].position[dimension] + vertices[n][1].position[dimension] + vertices[n][2].position[dimension]) / 3);
                         // !!! For debugging: the line above uses position[dimension] to access .x,.y,.z Is this supposed to work?
         }
 
@@ -172,19 +210,19 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
         mergeSortBy(means,indexes);
 
         // Find the median in the middle of the sorted list.
-        int medianIndex = means.size() / 2;
+        int medianIndex = means.size() / 2 - 1;
         
         // Split up the indexes vector for the left and right child node
         std::vector<int> indexesL, indexesR;
         int i = 0;
         while (i <= medianIndex) {                      // Left node holds all lower triangles up to and including the median.
-            indexesL[2 * i] = indexes[2 * i];
-            indexesL[2 * i + 1] = indexes[2 * i + 1];
+            indexesL.push_back(indexes[2 * i]);
+            indexesL.push_back(indexes[2 * i + 1]);
             ++i;
         }
         while (i < means.size()) {                      // Right node takes the triangles higher than the median.
-            indexesR[2 * i] = indexes[2 * i];
-            indexesL[2 * i + 1] = indexes[2 * i + 1];
+            indexesR.push_back(indexes[2 * i]);
+            indexesR.push_back(indexes[2 * i + 1]);
             ++i;
         }
 
@@ -197,10 +235,9 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
 
         // Put the nodes in the node array of the BVH.
         int leftIndex = this->nodes.size();
+        this->nodes[nodeIndex].indexes = { leftIndex, leftIndex + 1 };           // thisNode was passed by reference
         this->nodes.push_back(left);
         this->nodes.push_back(right);
-
-        thisNode.indexes = { leftIndex, leftIndex + 1 };
 
         // Recursive call for both child nodes.
         this->growBVH(leftIndex, recursionDepth + 1);       // Left node
@@ -223,7 +260,7 @@ BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
     this->m_numLeaves = 1;
 
     // Recursively create the BVH.
-//    growBVH(0,0);
+    growBVH(0,0);
 }
 
 // Return the depth of the tree that you constructed. This is used to tell the
