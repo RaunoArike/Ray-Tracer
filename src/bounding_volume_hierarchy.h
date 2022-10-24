@@ -29,6 +29,7 @@ public:
     [[nodiscard]] int numLeaves() const;
 
     // Visual Debug 1: Draw the bounding boxes of the nodes at the selected level.
+    void debugDrawLevel(int level, Node node);
     void debugDrawLevel(int level);
 
     // Visual Debug 2: Draw the triangles of the i-th leaf
@@ -46,5 +47,5 @@ private:
     Scene* m_pScene;
     std::vector<Node> nodes;                                    // Vector of nodes within the BVH.
 
-    const int maxLevels = 10;                                  // indicates the maximum depth of the BVH.
+    const int maxLevels = 3;                                  // indicates the maximum depth of the BVH.
 };

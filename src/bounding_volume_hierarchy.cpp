@@ -6,7 +6,9 @@
 #include "interpolate.h"
 #include <glm/glm.hpp>
 
-#include <iostream>
+
+/*** Helper functions ***/
+
 
 /* findBounds - Helper function to find boundaries of an AABB in the scene.
 *  Inputs:
@@ -15,9 +17,7 @@
 *  Outputs:
 *   - bounds - 2D vector that holds the boundaries of the AABB.
 */
-std::vector<std::vector<float>> findBounds(Scene* pScene, std::vector<int> indexes) {
-    assert(!(indexes.size() == 0));
-
+std::vector<std::vector<float>> findBounds(Scene* pScene, std::vector<int> &indexes) {
     // Definition, setting bounds to +- infinity for default.
     std::vector<std::vector<float>> bounds = { { std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity() },
         { std::numeric_limits<float>::infinity(), -std::numeric_limits<float>::infinity() },
@@ -25,40 +25,29 @@ std::vector<std::vector<float>> findBounds(Scene* pScene, std::vector<int> index
 
     // Adjust the boundaries by iterating over the triangles.
     int i = 0;
-    int meshNo = *indexes.begin();                              // Current mesh number and copy of it.
-    Mesh mesh = pScene->meshes[meshNo];
-    for (auto it = indexes.begin(); it != indexes.end(); ++it,++i) {
-        // Reload the mesh data type if it's a new mesh. Prevents copying a lot of data in larger meshes.
-        if (*it != meshNo) {
-            meshNo = *it;
-            mesh = pScene->meshes[meshNo];
-        }
-
-        // Find the triangle within the mesh.
+    for (auto it = indexes.begin(); it != indexes.end(); ++it) {
+        int meshNo = *it;          // Register index of the mesh in the scene before moving to triangle #
         ++it;
-        glm::uvec3 triangle = mesh.triangles[*it];
+
+        glm::uvec3 triangle = pScene->meshes[meshNo].triangles[*it];
 
         // Find the vertices that compose this triangle. Adjust the bounds according to the individual x,y,z values of this AABB.
         for (int k = 0; k < 3; k++) {
-            Vertex v = mesh.vertices[triangle[k]];      
+            Vertex v = pScene->meshes[meshNo].vertices[triangle[k]];
 
-            float x = v.position.x;
-            float y = v.position.y;
-            float z = v.position.z;
-
-            bounds[0][0] = fmin(bounds[0][0], x);
-            bounds[0][1] = fmax(bounds[0][1], x);
-            bounds[1][0] = fmin(bounds[1][0], y);
-            bounds[1][1] = fmax(bounds[1][1], y);
-            bounds[2][0] = fmin(bounds[2][0], z);
-            bounds[2][1] = fmax(bounds[2][1], z);
+            bounds[0][0] = fmin(bounds[0][0], v.position.x);
+            bounds[0][1] = fmax(bounds[0][1], v.position.x);
+            bounds[1][0] = fmin(bounds[1][0], v.position.y);
+            bounds[1][1] = fmax(bounds[1][1], v.position.y);
+            bounds[2][0] = fmin(bounds[2][0], v.position.z);
+            bounds[2][1] = fmax(bounds[2][1], v.position.z);
         }
     }
     return bounds;
 
     /* Remaining problem with this function: it iterates over the indexes (=2*n_triangles) instead of the vertices, even though the 
     *  vertices decide the final x,y,z values of the AABB, wasting time because the amount of triangles is larger than the amount of
-    *  vertices. 
+    *  vertices. (and we check way more vertices than needed, because triangles may point to the same vertices.)
     */
 }
 
@@ -71,13 +60,30 @@ std::vector<std::vector<float>> findBounds(Scene* pScene, std::vector<int> index
 */
 void rootNodeHelper(Scene* pScene, std::vector<int> & indexes, std::vector<std::vector<float>> & bounds) {
     for (int i = 0; i < pScene->meshes.size(); ++i) {
-        Mesh mesh = pScene->meshes[i];
-        for (int j = 0; j < mesh.triangles.size(); ++j) {
+        for (int j = 0; j < pScene->meshes[i].triangles.size(); ++j) {
             indexes.push_back(i); // Mesh in the scene
             indexes.push_back(j); // Triangle in mesh
         }
     }
     bounds = findBounds(pScene, indexes);
+}
+
+/* findMeans - create vector means that holds the means of triangles in pScene at each index along a specific dimension.
+ *  Inputs:
+ *   - pScene - pointer to the scene
+ *   - indexes -
+ */
+std::vector<float> findMeans(Scene* pScene, std::vector<int>& indexes, int dimension)
+{
+    std::vector<float> means;
+    for (int n = 0; n < indexes.size() / 2; ++n) {
+        glm::uvec3 triangle = pScene->meshes[indexes[2 * n]].triangles[indexes[2 * n + 1]];
+        std::vector<Vertex> vertices = { pScene->meshes[indexes[2 * n]].vertices[triangle.x],
+            pScene->meshes[indexes[2 * n]].vertices[triangle.y],
+            pScene->meshes[indexes[2 * n]].vertices[triangle.z] };
+        means.push_back((vertices[0].position[dimension] + vertices[1].position[dimension] + vertices[2].position[dimension]) / 3);
+    }
+    return means;
 }
 
 /* merge - performs merging operation for merge sort.
@@ -150,7 +156,7 @@ void mergeSortBy(std::vector<float> &by, std::vector<int> &A) {
                 aR.push_back(A[2 * i + 1]);
             }
         }
-        // Empty by and A 
+        // Empty by and A before moving sorted data back into it.
         by.clear();
         A.clear();
 
@@ -163,6 +169,10 @@ void mergeSortBy(std::vector<float> &by, std::vector<int> &A) {
     } 
 }
 
+
+/*** BoundingVolumeHierarchy class functions. ***/
+
+
 /* growBVH - uses recursion to grow the bounding volume hierarchy
 *  Inputs: 
 *   - nodeIndex - index of the node in the nodes vector in the BVH
@@ -171,42 +181,24 @@ void mergeSortBy(std::vector<float> &by, std::vector<int> &A) {
 *   - None. Modifies the attributes of the BVH to shape it 
 */
 void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
+    /* Exit condition 1: the node contains vector entries for 1 mesh and 1 triangle (size of 2 entries)
+     * Exit condition 2: the tree is at its maximum recursion depth.
+     * In either case, the node is a leaf node.
+     */ 
     if (this->nodes[nodeIndex].indexes.size() == 2 || recursionDepth >= this->maxLevels) {
-        /* Exit condition 1: the node contains vector entries for 1 mesh and 1 triangle (size of 2 entries)
-         * Exit condition 2: the tree is at its maximum recursion depth.
-         * In either case, the node is a leaf node.
-         */ 
         if (recursionDepth > this->m_numLevels)
             this->m_numLevels = recursionDepth;
 
         this->m_numLeaves = this->m_numLeaves + 1;
         this->nodes[nodeIndex].isParent = false;
     } else {
-        // For nodes in the middle of the tree ...
-        Node thisNode = this->nodes[nodeIndex];          // Pass by reference !
-        std::vector<int> indexes = thisNode.indexes;
+        // Get indexes of this node.
+        std::vector<int> indexes = this->nodes[nodeIndex].indexes;
 
-        int dimension = recursionDepth % 3;             // 0 = x, 1 = y, 2 = z
-        std::vector<glm::uvec3> triangles;
-        std::vector<std::vector<Vertex>> vertices;
-        std::vector<float> means;
+        // Find means of the triangles among these indexes along the dimension of interest.
+        std::vector<float> means = findMeans(this->m_pScene, indexes, recursionDepth % 3);
 
-        // Extract the center positions of the triangles along the dimension of interest.
-        int meshNo = indexes[0];
-        Mesh thisMesh = this->m_pScene->meshes[meshNo];
-        for (int n = 0; n < indexes.size() / 2; ++n) {
-            if (indexes[2*n] != meshNo)                                         // Load new mesh iff the index at 2n points to a new one. Spares a lot of time copying data.
-                Mesh thisMesh = this->m_pScene->meshes[indexes[2 * n]];
-
-            triangles.push_back(thisMesh.triangles[indexes[2*n+1]]);
-            vertices.push_back({ thisMesh.vertices[triangles[n].x], 
-                                 thisMesh.vertices[triangles[n].y], 
-                                 thisMesh.vertices[triangles[n].z] });
-            means.push_back((vertices[n][0].position[dimension] + vertices[n][1].position[dimension] + vertices[n][2].position[dimension]) / 3);
-                        // !!! For debugging: the line above uses position[dimension] to access .x,.y,.z Is this supposed to work?
-        }
-
-        // Sort the triangles vector using means.
+        // Sort the triangles vector by means.
         mergeSortBy(means,indexes);
 
         // Find the median in the middle of the sorted list.
@@ -226,14 +218,10 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
             ++i;
         }
 
-        // Set the other variables for the child nodes.
-        std::vector<std::vector<float>> boundsL = findBounds(this->m_pScene, indexesL);
-        std::vector<std::vector<float>> boundsR = findBounds(this->m_pScene, indexesR);
+        Node left = { true, findBounds(this->m_pScene, indexesL), indexesL };
+        Node right = { true, findBounds(this->m_pScene, indexesR), indexesR };
 
-        Node left = { true, boundsL, indexesL };
-        Node right = { true, boundsR, indexesR };
-
-        // Put the nodes in the node array of the BVH.
+        // Put the nodes at the end of the node array of the BVH.
         int leftIndex = this->nodes.size();
         this->nodes[nodeIndex].indexes = { leftIndex, leftIndex + 1 };           // thisNode was passed by reference
         this->nodes.push_back(left);
@@ -245,6 +233,10 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
     }
 }
 
+/* BoundingVolumeHierarchy - class constructor
+*  Outputs:
+*   - Creates an instance of a BHV class.
+*/
 BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
     : m_pScene(pScene)
 {
@@ -257,7 +249,7 @@ BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
     // Initialize the 0th layer of the BVH.
     this->nodes = { root };
     this->m_numLevels = 0;
-    this->m_numLeaves = 1;
+    this->m_numLeaves = 0;
 
     // Recursively create the BVH.
     growBVH(0,0);
@@ -267,14 +259,32 @@ BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
 // slider in the UI how many steps it should display for Visual Debug 1.
 int BoundingVolumeHierarchy::numLevels() const
 {
-    return 1;
+    return this->m_numLevels;
 }
 
 // Return the number of leaf nodes in the tree that you constructed. This is used to tell the
 // slider in the UI how many steps it should display for Visual Debug 2.
 int BoundingVolumeHierarchy::numLeaves() const
 {
-    return 1;
+    return this->m_numLeaves;
+}
+
+void BoundingVolumeHierarchy::debugDrawLevel(int level, Node node) {
+    if (level == 0 || !node.isParent) {
+        AxisAlignedBox aabb { glm::vec3(node.bounds[0][0], node.bounds[1][0], node.bounds[2][0]),
+            glm::vec3(node.bounds[0][1], node.bounds[1][1], node.bounds[2][1]) };
+
+        // Draw the AABB as a transparent green box.
+        // drawShape(aabb, DrawMode::Filled, glm::vec3(0.0f, 1.0f, 0.0f), 0.2f);
+
+        // Draw the AABB as a (white) wireframe box.
+        // drawAABB(aabb, DrawMode::Wireframe);
+        drawAABB(aabb, DrawMode::Filled, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
+    } else {
+        --level;
+        debugDrawLevel(level, this->nodes[node.indexes[0]]);
+        debugDrawLevel(level, this->nodes[node.indexes[1]]);
+    }
 }
 
 // Use this function to visualize your BVH. This is useful for debugging. Use the functions in
@@ -282,14 +292,8 @@ int BoundingVolumeHierarchy::numLeaves() const
 // mode, arbitrary colors and transparency.
 void BoundingVolumeHierarchy::debugDrawLevel(int level)
 {
-    // Draw the AABB as a transparent green box.
-    //AxisAlignedBox aabb{ glm::vec3(-0.05f), glm::vec3(0.05f, 1.05f, 1.05f) };
-    //drawShape(aabb, DrawMode::Filled, glm::vec3(0.0f, 1.0f, 0.0f), 0.2f);
-
-    // Draw the AABB as a (white) wireframe box.
-    AxisAlignedBox aabb { glm::vec3(0.0f), glm::vec3(0.0f, 1.05f, 1.05f) };
-    //drawAABB(aabb, DrawMode::Wireframe);
-    drawAABB(aabb, DrawMode::Filled, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
+    assert(level <= this->maxLevels);
+    debugDrawLevel(level, this->nodes[0]);
 }
 
 
@@ -299,16 +303,43 @@ void BoundingVolumeHierarchy::debugDrawLevel(int level)
 // i-th leaf node in the vector.
 void BoundingVolumeHierarchy::debugDrawLeaf(int leafIdx)
 {
-    // Draw the AABB as a transparent green box.
-    //AxisAlignedBox aabb{ glm::vec3(-0.05f), glm::vec3(0.05f, 1.05f, 1.05f) };
-    //drawShape(aabb, DrawMode::Filled, glm::vec3(0.0f, 1.0f, 0.0f), 0.2f);
+    AxisAlignedBox aabb;
+    int i;
+    bool found = false;
 
-    // Draw the AABB as a (white) wireframe box.
-    AxisAlignedBox aabb { glm::vec3(0.0f), glm::vec3(0.0f, 1.05f, 1.05f) };
-    //drawAABB(aabb, DrawMode::Wireframe);
-    drawAABB(aabb, DrawMode::Filled, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
+    for (i = 0; i < this->nodes.size(); ++i) {
+        if (!(this->nodes[i].isParent)) {
+            if (leafIdx == 1) {
+                aabb = {
+                    glm::vec3(this->nodes[i].bounds[0][0], this->nodes[i].bounds[1][0], this->nodes[i].bounds[2][0]), 
+                    glm::vec3(this->nodes[i].bounds[0][1], this->nodes[i].bounds[1][1], this->nodes[i].bounds[2][1])
+                };
+                found = true;
+                break;
+            } else if (leafIdx <= 0)
+                break;
+            else
+                --leafIdx;
+        }
+    }
 
-    // once you find the leaf node, you can use the function drawTriangle (from draw.h) to draw the contained primitives
+    if (found) {
+        // Draw the AABB as a transparent green box.
+        // AxisAlignedBox aabb{ glm::vec3(-0.05f), glm::vec3(0.05f, 1.05f, 1.05f) };
+        // drawShape(aabb, DrawMode::Filled, glm::vec3(0.0f, 1.0f, 0.0f), 0.2f);
+
+        // Draw the AABB as a (white) wireframe box.
+        // drawAABB(aabb, DrawMode::Wireframe);
+        drawAABB(aabb, DrawMode::Filled, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
+
+        // once you find the leaf node, you can use the function drawTriangle (from draw.h) to draw the contained primitives
+        for (int j = 0; j < this->nodes[i].indexes.size(); ++++j) {
+            glm::uvec3 triangle = m_pScene->meshes[this->nodes[i].indexes[j]].triangles[this->nodes[i].indexes[j+1]];
+            drawTriangle(m_pScene->meshes[this->nodes[i].indexes[j]].vertices[triangle.x], 
+                m_pScene->meshes[this->nodes[i].indexes[j]].vertices[triangle.y], 
+                m_pScene->meshes[this->nodes[i].indexes[j]].vertices[triangle.z]);
+        }
+    }
 }
 
 
