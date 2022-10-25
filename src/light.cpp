@@ -14,6 +14,8 @@ void sampleSegmentLight(const SegmentLight& segmentLight, glm::vec3& position, g
 {
     position = glm::vec3(0.0);
     color = glm::vec3(0.0);
+    
+
     // TODO: implement this function.
 }
 
@@ -23,6 +25,7 @@ void sampleParallelogramLight(const ParallelogramLight& parallelogramLight, glm:
 {
     position = glm::vec3(0.0);
     color = glm::vec3(0.0);
+    
     // TODO: implement this function.
 }
 
@@ -69,14 +72,36 @@ float testVisibilityLightSample(const glm::vec3& samplePos, const glm::vec3& deb
 // loadScene function in scene.cpp). Custom lights will not be visible in rasterization view.
 glm::vec3 computeLightContribution(const Scene& scene, const BvhInterface& bvh, const Features& features, Ray ray, HitInfo hitInfo)
 {
+    glm::vec3 res = glm::vec3(0.0);
+    
     if (features.enableShading) {
-        // If shading is enabled, compute the contribution from all lights.
+        glm::vec3 position { 0.0};
+        glm::vec3 color { 0.0};
+        for (const auto& light : scene.lights) {
+            if (std::holds_alternative<PointLight>(light)) {
+                const PointLight pointLight = std::get<PointLight>(light);
+                position = pointLight.position;
+                color = pointLight.color;
+               
+            } else if (std::holds_alternative<SegmentLight>(light)) {
+                const SegmentLight segmentLight = std::get<SegmentLight>(light);
+                sampleSegmentLight(segmentLight, position, color);
+            } else if (std::holds_alternative<ParallelogramLight>(light)) {
+                const ParallelogramLight parallelogramLight = std::get<ParallelogramLight>(light);
+                sampleParallelogramLight(parallelogramLight, position, color);
+            }
+            res = res + testVisibilityLightSample(position,color, bvh, features,  ray,hitInfo)* computeShading(position, color, features, ray, hitInfo);
+        }
+        return  res;
+       
 
-        // TODO: replace this by your own implementation of shading
-        return hitInfo.material.kd;
+       
+        
 
     } else {
         // If shading is disabled, return the albedo of the material.
         return hitInfo.material.kd;
+        
+        
     }
 }
