@@ -8,17 +8,18 @@ const glm::vec3 computeShading(const glm::vec3& lightPosition, const glm::vec3& 
     
     
     glm::vec3 light = normalize((lightPosition-(ray.origin+ray.t*ray.direction)));
+    glm::vec3 view = normalize(-ray.direction);
     if (dot(hitInfo.normal, light) < 0) {
         return glm::vec3(0, 0, 0);
     }
-    glm::vec3 view = normalize(-ray.direction);
+
     if (dot(hitInfo.normal, view) < 0) {
         return glm::vec3(0, 0, 0);
     }
     
     glm::vec3 reflct = normalize(glm::reflect(-light, normalize(hitInfo.normal)));
     
-    return lightColor * hitInfo.material.kd * dot(normalize(hitInfo.normal), light) + lightColor * hitInfo.material.ks * pow(dot(reflct, view), hitInfo.material.shininess);
+    return lightColor * (hitInfo.material.kd * dot(normalize(hitInfo.normal), light)) + lightColor * (hitInfo.material.ks * pow(dot(reflct, view), hitInfo.material.shininess));
   
     
 }

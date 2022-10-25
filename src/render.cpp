@@ -11,7 +11,7 @@ glm::vec3 getFinalColor(const Scene& scene, const BvhInterface& bvh, Ray ray, co
 {
     HitInfo hitInfo;
     if (bvh.intersect(ray, hitInfo, features)) {
-
+        
         glm::vec3 Lo = computeLightContribution(scene, bvh, features, ray, hitInfo);
 
         if (features.enableRecursive) {
@@ -21,7 +21,6 @@ glm::vec3 getFinalColor(const Scene& scene, const BvhInterface& bvh, Ray ray, co
 
         // Draw a white debug ray if the ray hits.
         drawRay(ray, Lo);
-
         // Set the color of the pixel to white if the ray hits.
         return Lo;
     } else {

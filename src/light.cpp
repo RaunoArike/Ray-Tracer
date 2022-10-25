@@ -73,24 +73,27 @@ float testVisibilityLightSample(const glm::vec3& samplePos, const glm::vec3& deb
 glm::vec3 computeLightContribution(const Scene& scene, const BvhInterface& bvh, const Features& features, Ray ray, HitInfo hitInfo)
 {
     glm::vec3 res = glm::vec3(0.0);
-    
+    glm::vec3 position { 0.0 };
+    glm::vec3 color { 0.0 };
     if (features.enableShading) {
-        glm::vec3 position { 0.0};
-        glm::vec3 color { 0.0};
+        
         for (const auto& light : scene.lights) {
             if (std::holds_alternative<PointLight>(light)) {
                 const PointLight pointLight = std::get<PointLight>(light);
                 position = pointLight.position;
                 color = pointLight.color;
-               
+                
             } else if (std::holds_alternative<SegmentLight>(light)) {
                 const SegmentLight segmentLight = std::get<SegmentLight>(light);
                 sampleSegmentLight(segmentLight, position, color);
+                
             } else if (std::holds_alternative<ParallelogramLight>(light)) {
                 const ParallelogramLight parallelogramLight = std::get<ParallelogramLight>(light);
                 sampleParallelogramLight(parallelogramLight, position, color);
+                
             }
-            res = res + testVisibilityLightSample(position,color, bvh, features,  ray,hitInfo)* computeShading(position, color, features, ray, hitInfo);
+            res = res + testVisibilityLightSample(position, color, bvh, features, ray, hitInfo) * computeShading(position, color, features, ray, hitInfo);
+            
         }
         return  res;
        
