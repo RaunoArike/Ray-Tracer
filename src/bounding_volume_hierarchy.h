@@ -47,5 +47,5 @@ private:
     Scene* m_pScene;
     std::vector<Node> nodes;                                    // Vector of nodes within the BVH.
 
-    const int maxLevels = 3;                                  // indicates the maximum depth of the BVH.
+    const int maxLevels = 10;                                   // Maximum depth of the BVH !!! 
 };
