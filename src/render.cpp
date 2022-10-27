@@ -3,6 +3,8 @@
 #include "light.h"
 #include "screen.h"
 #include <framework/trackball.h>
+#define EPSILON 0.0000001
+#define MAX_DEPTH 30
 #ifdef NDEBUG
 #include <omp.h>
 #endif
@@ -17,10 +19,19 @@ glm::vec3 getFinalColor(const Scene& scene, const BvhInterface& bvh, Ray ray, co
         if (features.enableRecursive) {
             Ray reflection = computeReflectionRay(ray, hitInfo);
             // TODO: put your own implementation of recursive ray tracing here.
+            if (glm::length(hitInfo.material.ks) < EPSILON || rayDepth > MAX_DEPTH) {
+                drawRay(ray, Lo);
+                return Lo;
+            }
+            Lo += getFinalColor(scene, bvh, reflection, features, rayDepth+1);
         }
 
-        // Draw a white debug ray if the ray hits.
-        drawRay(ray, Lo);
+        if (features.enableShading) {
+            drawRay(ray, Lo);
+        } else {
+            // draw a white debug ray
+            drawRay(ray, glm::vec3(1.0f));
+        }
 
         // Set the color of the pixel to white if the ray hits.
         return Lo;
