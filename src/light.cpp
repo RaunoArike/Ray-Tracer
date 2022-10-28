@@ -33,8 +33,23 @@ void sampleParallelogramLight(const ParallelogramLight& parallelogramLight, glm:
 // returns 1.0 if sample is visible, 0.0 otherwise
 float testVisibilityLightSample(const glm::vec3& samplePos, const glm::vec3& debugColor, const BvhInterface& bvh, const Features& features, Ray ray, HitInfo hitInfo)
 {
-    // TODO: implement this function.
-    return 1.0;
+    if (features.enableHardShadow) {
+        // Compute intersection point
+        glm::vec3 intersection = ray.origin + ray.t * ray.direction;
+
+        // Compute ray from light source to intersection
+        Ray lightToIntersection { samplePos, glm::normalize(intersection - samplePos), glm::distance(intersection,samplePos) - 0.001};  // subtract small factor to reduce noise
+
+        // Use bvh to find any triangles between light source and intersection
+        bool result = bvh.intersect(lightToIntersection, hitInfo, features);
+
+        if (result) {
+            drawRay(lightToIntersection, { 1, 0, 0 }); // Red indicates no direct light from this source
+            return 0.0;
+        } else
+            drawRay(lightToIntersection, debugColor); // Passed colour indicates direct light
+    }
+    return 1.0;     // Return 1.0 if hard shadows are off or if there is direct light from the sample position.
 }
 
 // given an intersection, computes the contribution from all light sources at the intersection point
