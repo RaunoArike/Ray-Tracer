@@ -5,6 +5,7 @@
 #include "texture.h"
 #include "interpolate.h"
 #include <glm/glm.hpp>
+#include <screen.cpp>
 
 
 BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
@@ -68,6 +69,8 @@ void BoundingVolumeHierarchy::debugDrawLeaf(int leafIdx)
 // file you like, including bounding_volume_hierarchy.h.
 bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Features& features) const
 {
+    
+   
     // If BVH is not enabled, use the naive implementation.
     if (!features.enableAccelStructure) {
         bool hit = false;
@@ -78,15 +81,20 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
                 const auto v1 = mesh.vertices[tri[1]];
                 const auto v2 = mesh.vertices[tri[2]];
                 if (intersectRayWithTriangle(v0.position, v1.position, v2.position, ray, hitInfo)) {
+                    
                     hitInfo.material = mesh.material;
                     hit = true;
-                   
-                    if (features.enableNormalInterp) { //if interpolated normals enables, set normals and barycentric coordinates
+                    glm::vec3 barc = computeBarycentricCoord(v0.position, v1.position, v2.position, ray.origin + ray.t * ray.direction);
+                    glm::vec2 texC = barc.x * v0.texCoord + barc.y * v1.texCoord + barc.z * v2.texCoord;
+                    hitInfo.barycentricCoord = barc;
+                    hitInfo.texCoord = texC;
+                    
+                    if (features.enableNormalInterp) { 
                         
-                        glm::vec3 barc = computeBarycentricCoord(v0.position, v1.position, v2.position, ray.origin + ray.t * ray.direction);
+                        
                         glm::vec3 interpolatedNormal = interpolateNormal(v0.normal, v1.normal, v2.normal, barc);
                         hitInfo.normal = normalize(interpolatedNormal);
-                        hitInfo.barycentricCoord = barc;
+                        
                         Ray nZero = Ray { v0.position, v0.normal,1 };
                         Ray nOne = Ray { v1.position, v1.normal,1 };
                         Ray nTwo = Ray { v2.position, v2.normal,1 };
