@@ -7,6 +7,12 @@
 #include <glm/glm.hpp>
 
 
+/* temporary: timing related inclusions and parameters */
+#include <ctime>
+#include <iostream>
+std::vector<float> sort_times;
+
+
 /*** Helper functions ***/
 
 
@@ -59,13 +65,28 @@ std::vector<std::vector<float>> findBounds(Scene* pScene, std::vector<int> &inde
 *  Outputs: None. The input variables will be updated to fit the scene.
 */
 void rootNodeHelper(Scene* pScene, std::vector<int> & indexes, std::vector<std::vector<float>> & bounds) {
+    std::cout << "Root node:\n";
+    clock_t time = clock();
+
+
     for (int i = 0; i < pScene->meshes.size(); ++i) {
         for (int j = 0; j < pScene->meshes[i].triangles.size(); ++j) {
             indexes.push_back(i); // Mesh in the scene
             indexes.push_back(j); // Triangle in mesh
         }
     }
+
+
+    time = clock() - time;
+    std::cout << "Adding indexes took " << (float)time / CLOCKS_PER_SEC << " seconds.\n";
+    time = clock();
+
+
     bounds = findBounds(pScene, indexes);
+
+
+    time = clock() - time;
+    std::cout << "Finding bounds took " << (float)time / CLOCKS_PER_SEC << " seconds\n";
 }
 
 /* findMeans - create vector means that holds the means of triangles in pScene at each index along a specific dimension.
@@ -181,6 +202,10 @@ void mergeSortBy(std::vector<float> &by, std::vector<int> &A) {
 *   - None. Modifies the attributes of the BVH to shape it 
 */
 void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
+    std::cout << "Node #" << nodeIndex << "\n";
+    clock_t time = clock();
+    
+    
     /* Exit condition 1: the node contains vector entries for 1 mesh and 1 triangle (size of 2 entries)
      * Exit condition 2: the tree is at its maximum recursion depth.
      * In either case, the node is a leaf node.
@@ -191,6 +216,12 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
 
         this->m_numLeaves = this->m_numLeaves + 1;
         this->nodes[nodeIndex].isParent = false;
+
+
+        time = clock() - time;
+        std::cout << "Child node creation took " << (float)time / CLOCKS_PER_SEC << " seconds.\n\n";
+
+
     } else {
         // Get indexes of this node.
         std::vector<int> indexes = this->nodes[nodeIndex].indexes;
@@ -198,8 +229,20 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
         // Find means of the triangles among these indexes along the dimension of interest.
         std::vector<float> means = findMeans(this->m_pScene, indexes, recursionDepth % 3);
 
+
+        time = clock() - time;
+        std::cout << "Finding means took " << (float)time/CLOCKS_PER_SEC << " seconds.\n";
+        time = clock();
+
+
         // Sort the triangles vector by means.
         mergeSortBy(means,indexes);
+
+
+        time = clock() - time;
+        std::cout << "Merge sort took " << (float)time / CLOCKS_PER_SEC << " seconds\n";
+        time = clock();
+
 
         // Find the median in the middle of the sorted list.
         int medianIndex = means.size() / 2 - 1;
@@ -218,14 +261,31 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
             ++i;
         }
 
+
+        time = clock() - time;
+        std::cout << "Dividing indexes over child nodes took " << (float)time / CLOCKS_PER_SEC << " seconds\n";
+        time = clock();
+
+
         Node left = { true, findBounds(this->m_pScene, indexesL), indexesL };
         Node right = { true, findBounds(this->m_pScene, indexesR), indexesR };
+
+
+        time = clock() - time;
+        std::cout << "Finding bounds took " << (float)time / CLOCKS_PER_SEC << " seconds\n";
+        time = clock();
+
 
         // Put the nodes at the end of the node array of the BVH.
         int leftIndex = this->nodes.size();
         this->nodes[nodeIndex].indexes = { leftIndex, leftIndex + 1 };           // thisNode was passed by reference
         this->nodes.push_back(left);
         this->nodes.push_back(right);
+
+
+        time = clock() - time;
+        std::cout << "Adding node to vector took " << (float)time / CLOCKS_PER_SEC << " seconds\n\n";
+
 
         // Recursive call for both child nodes.
         this->growBVH(leftIndex, recursionDepth + 1);       // Left node
@@ -240,6 +300,9 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
 BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
     : m_pScene(pScene)
 {
+    clock_t time = clock();
+
+
     // Create root node containing all triangles in the scene and an AABB for the entire scene, set to false to indicate it's a leaf node.
     std::vector<int> indexes;
     std::vector<std::vector<float>> bounds;
@@ -250,6 +313,11 @@ BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
     this->nodes = { root };
     this->m_numLevels = 0;
     this->m_numLeaves = 0;
+
+    
+    time = clock() - time;
+    std::cout << "Root node construction took " << (float)time / CLOCKS_PER_SEC << " seconds\n\n";
+
 
     // Recursively create the BVH.
     growBVH(0,0);
