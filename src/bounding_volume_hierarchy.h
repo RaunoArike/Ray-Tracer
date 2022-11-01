@@ -16,7 +16,15 @@ private:
     };
     struct pqNode {
         Node node; //
-        float t; // 
+        float t; //
+        
+        bool operator()(const pqNode& lhs, const pqNode& rhs)
+        {
+             return lhs.t > rhs.t;
+        }
+       
+
+
     };
 
 public:

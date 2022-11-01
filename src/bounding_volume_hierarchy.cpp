@@ -358,7 +358,7 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
 {
     // If BVH is not enabled, use the naive implementation.
     Vertex hv0; //vertices of hit triangle
-    Vertex hv1;
+    Vertex hv1; //needed to draw visual debug for normal interpolation and traversal
     Vertex hv2;
     
     if (!features.enableAccelStructure) {
@@ -391,10 +391,10 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
         // Please note that you should use `features.enableNormalInterp` and `features.enableTextureMapping`
         // to isolate the code that is only needed for the normal interpolation and texture mapping features.
         bool hit = false;
-        auto compare = [](pqNode a, pqNode b) { return a.t < a.t; }; 
-        std::priority_queue<pqNode, std::vector<pqNode>, decltype(compare)> pq(compare); //priority queue sorts for the smalles t value of pqNode
         
-        pqNode current(nodes[0],1000);
+        std::priority_queue<pqNode, std::vector<pqNode>, pqNode> pq; //priority queue sorts for the smalles t value of pqNode
+        
+        pqNode current(nodes[0]);
        
         pq.push(current);
         
@@ -406,6 +406,7 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
             glm::vec3 lower(current.node.bounds[0][0], current.node.bounds[1][0], current.node.bounds[2][0]);
             glm::vec3 upper(current.node.bounds[0][1], current.node.bounds[1][1], current.node.bounds[2][1]);
             AxisAlignedBox box(lower, upper);
+            
             drawAABB(box,DrawMode::Wireframe, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
             if (!current.node.isParent) {
                 
@@ -431,7 +432,12 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
                         
                         
                         
+                        
                     }
+                }
+                
+                if (pq.empty() ||ray.t <= pq.top().t) {
+                    break;
                 }
                 
                 
@@ -446,14 +452,26 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
                 }
             
             }
-            
-            
-            
-                
 
+            
+            
+              
+
+        }
+        if (!pq.empty()) { //draw the nodes which were already enqued but not visited
+            while (!pq.empty()) {
+                current = pq.top();
+                pq.pop();
+                glm::vec3 lower(current.node.bounds[0][0], current.node.bounds[1][0], current.node.bounds[2][0]);
+                glm::vec3 upper(current.node.bounds[0][1], current.node.bounds[1][1], current.node.bounds[2][1]);
+                AxisAlignedBox box(lower, upper);
+
+                drawAABB(box, DrawMode::Wireframe, glm::vec3(1.0f, 1.0f, 0.05f), 0.1f);
+            }
         }
         if (hit) {
             drawTriangle(hv0, hv1, hv2);
+            return true;
         }
         return hit;
     }
@@ -462,7 +480,7 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
 
     
 }
-
+//returns if pqNode intersect with 
 bool BoundingVolumeHierarchy::intersectRayPQNode(Ray& ray, pqNode& node) const
 {
     
@@ -506,7 +524,7 @@ bool BoundingVolumeHierarchy::intersectRayPQNode(Ray& ray, pqNode& node) const
     if (tmax < tmin) {
         return false;
     }
-    if ( tmin > 0 ) {
+    if (tmin > 0 && ray.t > tmin) {
         node.t = tmin;
         return true;
     }
