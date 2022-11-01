@@ -26,6 +26,10 @@ glm::vec3 getFinalColor(const Scene& scene, const BvhInterface& bvh, Ray ray, co
             Lo += getFinalColor(scene, bvh, reflection, features, rayDepth+1);
         }
 
+        if (features.enableNormalInterp) {
+
+        }
+
         if (features.enableShading) {
             drawRay(ray, Lo);
         } else {
