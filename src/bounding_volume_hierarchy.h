@@ -8,7 +8,17 @@
 struct Scene;
 
 class BoundingVolumeHierarchy {
+private:
+    struct Node {
+        bool isParent; // Type; false implies a leaf node
+        std::vector < std::vector<float>> bounds;    // { {x_min,x_max},{y_min,y_max},{z_min,z_max} } 
+        std::vector<int> indexes; // Child node indexes XOR mesh + triangle indexes. [mesh0, triangle0, mesh1, triangle1, mesh2, triangle2, ...]
+    };
+
 public:
+    // Helper function for constructor. Grows the tree using recursion.
+    void growBVH(int nodeIndex, int recursionDepth);
+
     // Constructor. Receives the scene and builds the bounding volume hierarchy.
     BoundingVolumeHierarchy(Scene* pScene);
 
@@ -19,6 +29,7 @@ public:
     [[nodiscard]] int numLeaves() const;
 
     // Visual Debug 1: Draw the bounding boxes of the nodes at the selected level.
+    void debugDrawLevel(int level, Node node);
     void debugDrawLevel(int level);
 
     // Visual Debug 2: Draw the triangles of the i-th leaf
@@ -34,4 +45,7 @@ private:
     int m_numLevels;
     int m_numLeaves;
     Scene* m_pScene;
+    std::vector<Node> nodes;                                    // Vector of nodes within the BVH.
+
+    const int maxLevels = 10;                                   // Maximum depth of the BVH !!! 
 };
