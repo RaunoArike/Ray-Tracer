@@ -15,8 +15,8 @@ private:
         std::vector<int> indexes; // Child node indexes XOR mesh + triangle indexes. [mesh0, triangle0, mesh1, triangle1, mesh2, triangle2, ...]
     };
     struct pqNode {
-        Node node;
-        float t;
+        Node node; //
+        float t; // 
     };
 
 public:
@@ -43,6 +43,11 @@ public:
     // Only find hits if they are closer than t stored in the ray and the intersection
     // is on the correct side of the origin (the new t >= 0).
     bool intersect(Ray& ray, HitInfo& hitInfo, const Features& features) const;
+
+    //Return true if ray hits the AABB of the priorityQueue Node
+    //Only finds hits closer then the t stored
+    //sets the t for the pqNode
+    bool intersectRayPQNode(Ray& ray, pqNode& node) const;
 
 
 private:

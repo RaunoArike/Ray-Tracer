@@ -357,7 +357,9 @@ void BoundingVolumeHierarchy::debugDrawLeaf(int leafIdx)
 bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Features& features) const
 {
     // If BVH is not enabled, use the naive implementation.
-    
+    Vertex hv0; //vertices of hit triangle
+    Vertex hv1;
+    Vertex hv2;
     
     if (!features.enableAccelStructure) {
         bool hit = true;
@@ -375,6 +377,7 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
 
                     glm::vec3 normal = normalize(glm::cross(d1, d2));
                     hitInfo.normal = normal;
+                    
                 }
             }
         }
@@ -388,33 +391,128 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
         // Please note that you should use `features.enableNormalInterp` and `features.enableTextureMapping`
         // to isolate the code that is only needed for the normal interpolation and texture mapping features.
         bool hit = false;
-        auto compare = [](pqNode a, pqNode b) { return a.t < a.t; };
-        std::priority_queue<pqNode, std::vector<pqNode>, decltype(compare)> pq(compare);
-        glm::vec3 lower(nodes[0].bounds[0][0], nodes[0].bounds[0][1], nodes[0].bounds[0][2]);
-        glm::vec3 upper(nodes[0].bounds[1][0], nodes[0].bounds[1][1], nodes[0].bounds[1][2]);
-        AxisAlignedBox c(lower, upper);
-        pqNode current(nodes[0],getT(c,ray));
+        auto compare = [](pqNode a, pqNode b) { return a.t < a.t; }; 
+        std::priority_queue<pqNode, std::vector<pqNode>, decltype(compare)> pq(compare); //priority queue sorts for the smalles t value of pqNode
+        
+        pqNode current(nodes[0],1000);
+       
         pq.push(current);
+        
+        
         while (!pq.empty()) {
+            
             current = pq.top();
             pq.pop();
-            glm::vec3 lower(current.node.bounds[0][0], current.node.bounds[0][1], current.node.bounds[0][2]);
-            glm::vec3 upper(current.node.bounds[1][0], current.node.bounds[1][1], current.node.bounds[1][2]);
-            AxisAlignedBox aabb(lower, upper);
-            if (intersectAABB(aabb, ray)) {
+            glm::vec3 lower(current.node.bounds[0][0], current.node.bounds[1][0], current.node.bounds[2][0]);
+            glm::vec3 upper(current.node.bounds[0][1], current.node.bounds[1][1], current.node.bounds[2][1]);
+            AxisAlignedBox box(lower, upper);
+            drawAABB(box,DrawMode::Wireframe, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
+            if (!current.node.isParent) {
                 
-                pq.push(pqNode(nodes[current.node.indexes[0]],getT(aabb,ray)));
-                pq.push(pqNode(nodes[current.node.indexes[1]],getT(aabb,ray)));
+                
+                for (int i = 0; i < current.node.indexes.size(); i = i + 2) {
+                    Mesh mesh = m_pScene->meshes[current.node.indexes[i]];
+                    
+                    const auto triangle = mesh.triangles[current.node.indexes[i+1]];
+                    Vertex v0 = mesh.vertices[triangle[0]];
+                    Vertex v1 = mesh.vertices[triangle[1]];
+                    Vertex v2 = mesh.vertices[triangle[2]];
+                    
+                    if (intersectRayWithTriangle(v0.position, v1.position, v2.position, ray, hitInfo)) {
+                        hitInfo.material = mesh.material;
+                        hit = true;
+                        glm::vec3 d1 = v1.position - v0.position;
+                        glm::vec3 d2 = v2.position - v0.position;
+                        hv0 = v0; 
+                        hv1 = v1;
+                        hv2 = v2; 
+                        glm::vec3 normal = normalize(glm::cross(d1, d2));
+                        hitInfo.normal = normal;
+                        
+                        
+                        
+                    }
+                }
+                
+                
+               
+            } else {
+                for (int i : current.node.indexes) {
+                    pqNode child = pqNode(nodes[i]);
+                    if (intersectRayPQNode(ray, child)) {
+                        pq.push(child);
+                        
+                    }
+                }
+            
             }
-        }
+            
+            
+            
+                
 
-        
-      
-        
+        }
+        if (hit) {
+            drawTriangle(hv0, hv1, hv2);
+        }
         return hit;
     }
+
+    
+
     
 }
+
+bool BoundingVolumeHierarchy::intersectRayPQNode(Ray& ray, pqNode& node) const
+{
+    
+    glm::vec3 lower(node.node.bounds[0][0], node.node.bounds[1][0], node.node.bounds[2][0]);
+    glm::vec3 upper(node.node.bounds[0][1], node.node.bounds[1][1], node.node.bounds[2][1]);
+    AxisAlignedBox box(lower, upper);
+    float tmax = FLT_MAX;
+    float tmin = FLT_MIN;
+    if (ray.direction.x != 0) {
+        float tx_min = (box.lower.x - ray.origin.x) / ray.direction.x;
+        float tx_max = (box.upper.x - ray.origin.x) / ray.direction.x;
+        tmin = fmax(tmin, fmin(tx_min, tx_max));
+        tmax = fmin(tmax, fmax(tx_min, tx_max));
+    } else {
+        if (ray.origin.x < box.lower.x || ray.origin.x > box.upper.x) {
+            return false;
+        }
+    }
+
+    if (ray.direction.x != 0) {
+        float ty_min = (box.lower.y - ray.origin.y) / ray.direction.y;
+        float ty_max = (box.upper.y - ray.origin.y) / ray.direction.y;
+        tmin = fmax(tmin, fmin(ty_min, ty_max));
+        tmax = fmin(tmax, fmax(ty_min, ty_max));
+    } else {
+        if (ray.origin.y < box.lower.y || ray.origin.y > box.upper.y) {
+            return false;
+        }
+    }
+
+    if (ray.direction.z != 0) {
+        float tz_min = (box.lower.z - ray.origin.z) / ray.direction.z;
+        float tz_max = (box.upper.z - ray.origin.z) / ray.direction.z;
+        tmin = fmax(tmin, fmin(tz_min, tz_max));
+        tmax = fmin(tmax, fmax(tz_min, tz_max));
+    } else {
+        if (ray.origin.z < box.lower.z || ray.origin.z > box.upper.z) {
+            return false;
+        }
+    }
+    if (tmax < tmin) {
+        return false;
+    }
+    if ( tmin > 0 ) {
+        node.t = tmin;
+        return true;
+    }
+    return false;
+}
+
 
 
 
