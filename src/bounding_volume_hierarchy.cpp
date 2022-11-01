@@ -5,6 +5,13 @@
 #include "texture.h"
 #include "interpolate.h"
 #include <glm/glm.hpp>
+#include <queue>
+#include <stack>
+
+
+
+
+
 
 
 /*** Helper functions ***/
@@ -350,8 +357,10 @@ void BoundingVolumeHierarchy::debugDrawLeaf(int leafIdx)
 bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Features& features) const
 {
     // If BVH is not enabled, use the naive implementation.
+    
+    
     if (!features.enableAccelStructure) {
-        bool hit = false;
+        bool hit = true;
         // Intersect with all triangles of all meshes.
         for (const auto& mesh : m_pScene->meshes) {
             for (const auto& tri : mesh.triangles) {
@@ -374,9 +383,43 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
             hit |= intersectRayWithShape(sphere, ray, hitInfo);
         return hit;
     } else {
+        
         // TODO: implement here the bounding volume hierarchy traversal.
         // Please note that you should use `features.enableNormalInterp` and `features.enableTextureMapping`
         // to isolate the code that is only needed for the normal interpolation and texture mapping features.
-        return false;
+        bool hit = false;
+        auto compare = [](pqNode a, pqNode b) { return a.t < a.t; };
+        std::priority_queue<pqNode, std::vector<pqNode>, decltype(compare)> pq(compare);
+        glm::vec3 lower(nodes[0].bounds[0][0], nodes[0].bounds[0][1], nodes[0].bounds[0][2]);
+        glm::vec3 upper(nodes[0].bounds[1][0], nodes[0].bounds[1][1], nodes[0].bounds[1][2]);
+        AxisAlignedBox c(lower, upper);
+        pqNode current(nodes[0],getT(c,ray));
+        pq.push(current);
+        while (!pq.empty()) {
+            current = pq.top();
+            pq.pop();
+            glm::vec3 lower(current.node.bounds[0][0], current.node.bounds[0][1], current.node.bounds[0][2]);
+            glm::vec3 upper(current.node.bounds[1][0], current.node.bounds[1][1], current.node.bounds[1][2]);
+            AxisAlignedBox aabb(lower, upper);
+            if (intersectAABB(aabb, ray)) {
+                
+                pq.push(pqNode(nodes[current.node.indexes[0]],getT(aabb,ray)));
+                pq.push(pqNode(nodes[current.node.indexes[1]],getT(aabb,ray)));
+            }
+        }
+
+        
+      
+        
+        return hit;
     }
+    
 }
+
+
+
+
+
+
+
+

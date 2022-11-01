@@ -14,6 +14,10 @@ private:
         std::vector < std::vector<float>> bounds;    // { {x_min,x_max},{y_min,y_max},{z_min,z_max} } 
         std::vector<int> indexes; // Child node indexes XOR mesh + triangle indexes. [mesh0, triangle0, mesh1, triangle1, mesh2, triangle2, ...]
     };
+    struct pqNode {
+        Node node;
+        float t;
+    };
 
 public:
     // Helper function for constructor. Grows the tree using recursion.

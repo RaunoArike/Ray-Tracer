@@ -45,6 +45,8 @@ void drawExampleOfCustomVisualDebug()
 }
 
 
+
+
 void drawTriangle (const Vertex& v0, const Vertex& v1, const Vertex& v2 ) {
     glBegin(GL_TRIANGLES);
     glColor3f(0.f, 1.f, 0.f);
