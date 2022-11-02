@@ -13,7 +13,7 @@ glm::vec3 getFinalColor(const Scene& scene, const BvhInterface& bvh, Ray ray, co
 {
     HitInfo hitInfo;
     if (bvh.intersect(ray, hitInfo, features)) {
-
+        
         glm::vec3 Lo = computeLightContribution(scene, bvh, features, ray, hitInfo);
 
         if (features.enableRecursive) {
@@ -24,6 +24,10 @@ glm::vec3 getFinalColor(const Scene& scene, const BvhInterface& bvh, Ray ray, co
                 return Lo;
             }
             Lo += getFinalColor(scene, bvh, reflection, features, rayDepth+1);
+        }
+
+        if (features.enableNormalInterp) {
+
         }
 
         if (features.enableShading) {
