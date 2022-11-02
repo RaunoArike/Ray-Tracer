@@ -14,6 +14,16 @@ private:
         std::vector < std::vector<float>> bounds;    // { {x_min,x_max},{y_min,y_max},{z_min,z_max} } 
         std::vector<int> indexes; // Child node indexes XOR mesh + triangle indexes. [mesh0, triangle0, mesh1, triangle1, mesh2, triangle2, ...]
     };
+    struct pqNode {
+        Node node; //
+        float t; // the t when the ray enters the box
+
+        bool operator()(const pqNode& lhs, const pqNode& rhs) // Comperator used to sort the priority queue
+        {
+            return lhs.t > rhs.t; // gives smallest t the highest priority
+        }
+    };
+
 
 public:
     // Helper function for constructor. Grows the tree using recursion.
@@ -39,6 +49,12 @@ public:
     // Only find hits if they are closer than t stored in the ray and the intersection
     // is on the correct side of the origin (the new t >= 0).
     bool intersect(Ray& ray, HitInfo& hitInfo, const Features& features) const;
+
+    // Return true if ray hits the AABB of the priorityQueue Node
+    // Only finds hits closer then the t stored
+    // sets the t for the pqNode
+    bool intersectRayPQNode(Ray& ray, pqNode& node) const;
+
 
 
 private:

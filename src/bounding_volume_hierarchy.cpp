@@ -6,6 +6,7 @@
 #include "interpolate.h"
 #include <glm/glm.hpp>
 #include <screen.cpp>
+#include <queue>
 
 
 /*** Helper functions ***/
@@ -348,6 +349,10 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
     Ray nOne ;
     Ray nTwo;
     Ray nPoint ;
+    Vertex hv0; // vertices of hit triangle
+    Vertex hv1; // needed to draw visual debug for normal interpolation and traversal
+    Vertex hv2;
+
     // If BVH is not enabled, use the naive implementation.
     if (!features.enableAccelStructure) {
         bool hit = false;
@@ -406,6 +411,149 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
         // TODO: implement here the bounding volume hierarchy traversal.
         // Please note that you should use `features.enableNormalInterp` and `features.enableTextureMapping`
         // to isolate the code that is only needed for the normal interpolation and texture mapping features.
+        bool hit = false;
+
+        std::priority_queue<pqNode, std::vector<pqNode>, pqNode> pq; // priority queue sorts for the smalles t value of pqNode
+
+        pqNode current(nodes[0]);
+
+        pq.push(current);
+
+        while (!pq.empty()) {
+
+            current = pq.top();
+            pq.pop();
+            glm::vec3 lower(current.node.bounds[0][0], current.node.bounds[1][0], current.node.bounds[2][0]);
+            glm::vec3 upper(current.node.bounds[0][1], current.node.bounds[1][1], current.node.bounds[2][1]);
+            AxisAlignedBox box(lower, upper);
+
+            drawAABB(box, DrawMode::Wireframe, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
+            if (!current.node.isParent) {
+
+                for (int i = 0; i < current.node.indexes.size(); i = i + 2) {
+                    Mesh mesh = m_pScene->meshes[current.node.indexes[i]];
+
+                    const auto triangle = mesh.triangles[current.node.indexes[i + 1]];
+                    Vertex v0 = mesh.vertices[triangle[0]];
+                    Vertex v1 = mesh.vertices[triangle[1]];
+                    Vertex v2 = mesh.vertices[triangle[2]];
+
+                    if (intersectRayWithTriangle(v0.position, v1.position, v2.position, ray, hitInfo)) {
+                        hitInfo.material = mesh.material;
+                        hit = true;
+                        glm::vec3 barc = computeBarycentricCoord(v0.position, v1.position, v2.position, ray.origin + ray.t * ray.direction);
+                        glm::vec2 texC = barc.x * v0.texCoord + barc.y * v1.texCoord + barc.z * v2.texCoord;
+                        hitInfo.barycentricCoord = barc;
+                        hitInfo.texCoord = texC;
+                        hv0 = v0;
+                        hv1 = v1;
+                        hv2 = v2;
+                        if (features.enableNormalInterp) { // interpolate normal and update information to draw normals for visual debug
+
+                            glm::vec3 interpolatedNormal = interpolateNormal(v0.normal, v1.normal, v2.normal, barc);
+                            hitInfo.normal = normalize(interpolatedNormal);
+                            nZero = Ray { v0.position, v0.normal, 1 };
+                            nOne = Ray { v1.position, v1.normal, 1 };
+                            nTwo = Ray { v2.position, v2.normal, 1 };
+                            nPoint = Ray { ray.origin + ray.t * ray.direction, hitInfo.normal, 1 };
+
+                        } else {
+                            glm::vec3 d1 = v1.position - v0.position;
+                            glm::vec3 d2 = v2.position - v0.position;
+
+                            glm::vec3 normal = normalize(glm::cross(d1, d2));
+                            hitInfo.normal = normal;
+                        }
+                    }
+                }
+
+                if (pq.empty() || ray.t <= pq.top().t) {
+                    break;
+                }
+
+            } else {
+                for (int i : current.node.indexes) {
+                    pqNode child = pqNode(nodes[i]);
+                    if (intersectRayPQNode(ray, child)) {
+                        pq.push(child);
+                    }
+                }
+            }
+        }
+
+        if (!pq.empty() && features.enableShading) { // draw the nodes which were already enqued but not visited when shading and bvh are enabled
+            while (!pq.empty()) {
+                current = pq.top();
+                pq.pop();
+                glm::vec3 lower(current.node.bounds[0][0], current.node.bounds[1][0], current.node.bounds[2][0]);
+                glm::vec3 upper(current.node.bounds[0][1], current.node.bounds[1][1], current.node.bounds[2][1]);
+                AxisAlignedBox box(lower, upper);
+
+                drawAABB(box, DrawMode::Wireframe, glm::vec3(1.0f, 1.0f, 0.05f), 0.1f);
+            }
+        }
+        if (hit) {
+            drawTriangle(hv0, hv1, hv2);
+            if (features.enableNormalInterp) { // if a hit occurs and normal interpolation enabled, draw normals
+                drawRay(nZero, glm::vec3(1, 0, 0));
+                drawRay(nOne, glm::vec3(1, 0, 0));
+                drawRay(nTwo, glm::vec3(1, 0, 0));
+                drawRay(nPoint, glm::vec3(0, 0, 1));
+            }
+            return true;
+        }
+        return hit;
+    }
+}
+
+// returns if pqNode intersect with Ray
+// only returns true if t of node >0 and t of node < t of ray
+bool BoundingVolumeHierarchy::intersectRayPQNode(Ray& ray, pqNode& node) const
+{
+
+    glm::vec3 lower(node.node.bounds[0][0], node.node.bounds[1][0], node.node.bounds[2][0]);
+    glm::vec3 upper(node.node.bounds[0][1], node.node.bounds[1][1], node.node.bounds[2][1]);
+    AxisAlignedBox box(lower, upper);
+    float tmax = FLT_MAX;
+    float tmin = FLT_MIN;
+    if (ray.direction.x != 0) {
+        float tx_min = (box.lower.x - ray.origin.x) / ray.direction.x;
+        float tx_max = (box.upper.x - ray.origin.x) / ray.direction.x;
+        tmin = fmax(tmin, fmin(tx_min, tx_max));
+        tmax = fmin(tmax, fmax(tx_min, tx_max));
+    } else {
+        if (ray.origin.x < box.lower.x || ray.origin.x > box.upper.x) {
+            return false;
+        }
+    }
+
+    if (ray.direction.x != 0) {
+        float ty_min = (box.lower.y - ray.origin.y) / ray.direction.y;
+        float ty_max = (box.upper.y - ray.origin.y) / ray.direction.y;
+        tmin = fmax(tmin, fmin(ty_min, ty_max));
+        tmax = fmin(tmax, fmax(ty_min, ty_max));
+    } else {
+        if (ray.origin.y < box.lower.y || ray.origin.y > box.upper.y) {
+            return false;
+        }
+    }
+
+    if (ray.direction.z != 0) {
+        float tz_min = (box.lower.z - ray.origin.z) / ray.direction.z;
+        float tz_max = (box.upper.z - ray.origin.z) / ray.direction.z;
+        tmin = fmax(tmin, fmin(tz_min, tz_max));
+        tmax = fmin(tmax, fmax(tz_min, tz_max));
+    } else {
+        if (ray.origin.z < box.lower.z || ray.origin.z > box.upper.z) {
+            return false;
+        }
+    }
+    if (tmax < tmin) {
         return false;
     }
+    if (tmin > 0 && ray.t > tmin) {
+        node.t = tmin;
+        return true;
+    }
+    return false;
 }
