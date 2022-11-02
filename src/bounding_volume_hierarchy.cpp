@@ -480,7 +480,8 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
 
     
 }
-//returns if pqNode intersect with 
+//returns if pqNode intersect with Ray
+//only returns true if t of node >0 and t of node < t of ray
 bool BoundingVolumeHierarchy::intersectRayPQNode(Ray& ray, pqNode& node) const
 {
     

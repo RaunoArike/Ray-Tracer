@@ -15,12 +15,12 @@ private:
         std::vector<int> indexes; // Child node indexes XOR mesh + triangle indexes. [mesh0, triangle0, mesh1, triangle1, mesh2, triangle2, ...]
     };
     struct pqNode {
-        Node node; //
-        float t; //
+        Node node; // 
+        float t; // the t when the ray enters the box
         
-        bool operator()(const pqNode& lhs, const pqNode& rhs)
+        bool operator()(const pqNode& lhs, const pqNode& rhs) //Comperator used to sort the priority queue
         {
-             return lhs.t > rhs.t;
+             return lhs.t > rhs.t; //gives smallest t the highest priority
         }
        
 
