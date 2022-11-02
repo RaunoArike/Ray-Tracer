@@ -53,7 +53,7 @@ public:
     // Return true if ray hits the AABB of the priorityQueue Node
     // Only finds hits closer then the t stored
     // sets the t for the pqNode
-    bool intersectRayPQNode(Ray& ray, pqNode& node) const;
+    bool intersectRayNode(Ray& ray, int nIndex, HitInfo& hitInfo, const Features& features,int& hmesh, int& hv0, int& hv1, int& hv2) const;
 
 
 
