@@ -507,53 +507,17 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
 }
 
 // returns if pqNode intersect with Ray
-// only returns true if t of node >0 and t of node < t of ray
-bool BoundingVolumeHierarchy::intersectRayPQNode(Ray& ray, pqNode& node) const
+// sets t for the node
+bool BoundingVolumeHierarchy::intersectRayPQNode(Ray ray, pqNode& node) const
 {
 
     glm::vec3 lower(node.node.bounds[0][0], node.node.bounds[1][0], node.node.bounds[2][0]);
     glm::vec3 upper(node.node.bounds[0][1], node.node.bounds[1][1], node.node.bounds[2][1]);
     AxisAlignedBox box(lower, upper);
-    float tmax = FLT_MAX;
-    float tmin = FLT_MIN;
-    if (ray.direction.x != 0) {
-        float tx_min = (box.lower.x - ray.origin.x) / ray.direction.x;
-        float tx_max = (box.upper.x - ray.origin.x) / ray.direction.x;
-        tmin = fmax(tmin, fmin(tx_min, tx_max));
-        tmax = fmin(tmax, fmax(tx_min, tx_max));
-    } else {
-        if (ray.origin.x < box.lower.x || ray.origin.x > box.upper.x) {
-            return false;
-        }
-    }
-
-    if (ray.direction.x != 0) {
-        float ty_min = (box.lower.y - ray.origin.y) / ray.direction.y;
-        float ty_max = (box.upper.y - ray.origin.y) / ray.direction.y;
-        tmin = fmax(tmin, fmin(ty_min, ty_max));
-        tmax = fmin(tmax, fmax(ty_min, ty_max));
-    } else {
-        if (ray.origin.y < box.lower.y || ray.origin.y > box.upper.y) {
-            return false;
-        }
-    }
-
-    if (ray.direction.z != 0) {
-        float tz_min = (box.lower.z - ray.origin.z) / ray.direction.z;
-        float tz_max = (box.upper.z - ray.origin.z) / ray.direction.z;
-        tmin = fmax(tmin, fmin(tz_min, tz_max));
-        tmax = fmin(tmax, fmax(tz_min, tz_max));
-    } else {
-        if (ray.origin.z < box.lower.z || ray.origin.z > box.upper.z) {
-            return false;
-        }
-    }
-    if (tmax < tmin) {
-        return false;
-    }
-    if (tmin > 0 && ray.t > tmin) {
-        node.t = tmin;
+    if (intersectRayWithShape(box, ray)) {
+        node.t = ray.t;
         return true;
     }
     return false;
+    
 }
