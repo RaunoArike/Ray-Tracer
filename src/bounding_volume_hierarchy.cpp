@@ -54,11 +54,6 @@ std::vector<std::vector<float>> findBounds(Scene* pScene, std::vector<int> &inde
         }
     }
     return bounds;
-
-    /* Remaining problem with this function: it iterates over the indexes (=2*n_triangles) instead of the vertices, even though the 
-    *  vertices decide the final x,y,z values of the AABB, wasting time because the amount of triangles is larger than the amount of
-    *  vertices. (and we check way more vertices than needed, because triangles may point to the same vertices.)
-    */
 }
 
 /* rootNodeHelper - Helper function to create the root node.
