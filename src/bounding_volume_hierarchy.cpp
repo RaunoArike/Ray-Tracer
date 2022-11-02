@@ -458,7 +458,7 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
               
 
         }
-        if (!pq.empty()) { //draw the nodes which were already enqued but not visited
+        if (!pq.empty() && features.enableShading) { //draw the nodes which were already enqued but not visited when shading and bvh are enabled
             while (!pq.empty()) {
                 current = pq.top();
                 pq.pop();
