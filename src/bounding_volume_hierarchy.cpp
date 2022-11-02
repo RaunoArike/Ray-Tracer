@@ -435,13 +435,27 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
         return hit;
     }
 }
+void getT(AxisAlignedBox box, Ray ray, float& f)
+{
+    if (intersectRayWithShape(box, ray)) {
 
+        f = ray.t;
+    } else {
+        f = FLT_MAX;
+    }
+}
 
 bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hitInfo, const Features& features, int& hmesh, int& hv0, int& hv1, int& hv2) const
                                               
                                               
 {
     
+    glm::vec3 lowerCur (nodes[index].bounds[0][0], nodes[index].bounds[1][0], nodes[index].bounds[2][0]);
+    glm::vec3 upperCur(nodes[index].bounds[0][1], nodes[index].bounds[1][1], nodes[index].bounds[2][1]);
+    AxisAlignedBox boxCur(lowerCur, upperCur);
+
+    drawAABB(boxCur, DrawMode::Wireframe, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
+
     bool hit = false;
     if (!nodes[index].isParent) {
         for (int i = 0; i < nodes[index].indexes.size(); i = i + 2) {
@@ -488,32 +502,51 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
         int lc = nodes[index].indexes[0];
         glm::vec3 lower(nodes[lc].bounds[0][0], nodes[lc].bounds[1][0], nodes[lc].bounds[2][0]);
         glm::vec3 upper(nodes[lc].bounds[0][1], nodes[lc].bounds[1][1], nodes[lc].bounds[2][1]);
-        AxisAlignedBox box(lower, upper);
-        float tl = ray.t;
-        if (intersectRayWithShape(box, ray)) {
-            drawAABB(box, DrawMode::Wireframe, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
-            ray.t = tl;
-            if (intersectRayNode(ray, lc, hitInfo, features,hmesh,hv0,hv1,hv2)) {
-                hit = true;
-            }
-        }
+        AxisAlignedBox boxl(lower, upper);
+        float t = ray.t;
+        
         int rc = nodes[index].indexes[1];
         lower= glm::vec3(nodes[rc].bounds[0][0], nodes[rc].bounds[1][0], nodes[rc].bounds[2][0]);
         upper= glm::vec3(nodes[rc].bounds[0][1], nodes[rc].bounds[1][1], nodes[rc].bounds[2][1]);
-        box= AxisAlignedBox(lower, upper);
-        float tr = ray.t;
-        if (intersectRayWithShape(box, ray)) {
-            drawAABB(box, DrawMode::Wireframe, glm::vec3(.05f, 1.0f, 0.05f), 0.1f);
-            ray.t = tr;
-            if (intersectRayNode(ray, rc, hitInfo, features, hmesh,hv0,hv1,hv2)) {
-                hit = true;
-            }
+        AxisAlignedBox boxr(lower, upper);
+        float lct;
+        float rct;
+        getT(boxl,ray,lct);
+        getT(boxr, ray, rct);
+        if (lct != FLT_MAX && features.enableShading) {
+            drawAABB(boxl, DrawMode::Wireframe, glm::vec3(1.0f, 1.0f, 0.05f), 0.1f);
         }
+        if (rct != FLT_MAX && features.enableShading) {
+            drawAABB(boxr, DrawMode::Wireframe, glm::vec3(1.0f, 1.0f, 0.05f), 0.1f);
+        }
+        if (lct < rct) {
+            if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+                hit = true;
+            } else {
+                if (rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+                    hit = true;
+                }
+            }
+        } else {
+            if (rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+                hit = true;
+            } else {
+                if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+                    hit = true;
+                }
+            }
+        
+        }
+        
+        
+
     }
     
 
     return hit;
 }
+
+
 
     
    
