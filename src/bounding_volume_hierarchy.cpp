@@ -456,7 +456,7 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
 
     drawAABB(boxCur, DrawMode::Wireframe, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
 
-    bool hit = false;
+   
     if (!nodes[index].isParent) {
         for (int i = 0; i < nodes[index].indexes.size(); i = i + 2) {
 
@@ -468,7 +468,7 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
 
             if (intersectRayWithTriangle(m_pScene->meshes[mesh].vertices[v0].position, m_pScene->meshes[mesh].vertices[v1].position, m_pScene->meshes[mesh].vertices[v2].position, ray, hitInfo)) {
                 hitInfo.material = m_pScene->meshes[nodes[index].indexes[i]].material;
-                hit = true;
+                
 
                 hmesh = mesh;
                 hv0 = triangle[0];
@@ -521,18 +521,18 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
         }
         if (lct < rct) {
             if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
-                hit = true;
+                return true;
             } else {
                 if (rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
-                    hit = true;
+                    return true;
                 }
             }
         } else {
             if (rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
-                hit = true;
+                return true;
             } else {
                 if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
-                    hit = true;
+                    return true;
                 }
             }
         
@@ -543,7 +543,7 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
     }
     
 
-    return hit;
+    return false;
 }
 
 
