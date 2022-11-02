@@ -5,7 +5,7 @@
 #include "texture.h"
 #include "interpolate.h"
 #include <glm/glm.hpp>
-
+#include <set>
 
 /*** Helper functions ***/
 
@@ -25,22 +25,32 @@ std::vector<std::vector<float>> findBounds(Scene* pScene, std::vector<int> &inde
 
     // Adjust the boundaries by iterating over the triangles.
     int i = 0;
+    int meshNo = *(indexes.begin());
+    std::set<int> seenVertices;
+
     for (auto it = indexes.begin(); it != indexes.end(); ++it) {
-        int meshNo = *it;          // Register index of the mesh in the scene before moving to triangle #
+        if (*it != meshNo) {
+            meshNo = *it;           // Register index of the mesh in the scene before moving to triangle #
+            seenVertices.clear();
+        }
         ++it;
 
         glm::uvec3 triangle = pScene->meshes[meshNo].triangles[*it];
 
         // Find the vertices that compose this triangle. Adjust the bounds according to the individual x,y,z values of this AABB.
         for (int k = 0; k < 3; k++) {
-            Vertex v = pScene->meshes[meshNo].vertices[triangle[k]];
+            if (!seenVertices.contains(triangle[k])) {
+                Vertex v = pScene->meshes[meshNo].vertices[triangle[k]];
 
-            bounds[0][0] = fmin(bounds[0][0], v.position.x);
-            bounds[0][1] = fmax(bounds[0][1], v.position.x);
-            bounds[1][0] = fmin(bounds[1][0], v.position.y);
-            bounds[1][1] = fmax(bounds[1][1], v.position.y);
-            bounds[2][0] = fmin(bounds[2][0], v.position.z);
-            bounds[2][1] = fmax(bounds[2][1], v.position.z);
+                bounds[0][0] = fmin(bounds[0][0], v.position.x);
+                bounds[0][1] = fmax(bounds[0][1], v.position.x);
+                bounds[1][0] = fmin(bounds[1][0], v.position.y);
+                bounds[1][1] = fmax(bounds[1][1], v.position.y);
+                bounds[2][0] = fmin(bounds[2][0], v.position.z);
+                bounds[2][1] = fmax(bounds[2][1], v.position.z);
+
+                seenVertices.insert(triangle[k]);
+            }
         }
     }
     return bounds;
