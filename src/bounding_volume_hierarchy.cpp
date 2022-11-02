@@ -94,86 +94,78 @@ std::vector<float> findMeans(Scene* pScene, std::vector<int>& indexes, int dimen
 }
 
 /* merge - performs merging operation for merge sort.
-*  Inputs:
-*   - by - vector size n that indicates the order
-*   - byL, byR - vectors that are to be merged into by
-*   - A - vector size 2n that is sorted according to the order in by
-*   - aL, aR - vectors that are merged into A
-*  Outputs:
-*   None. Variables are passed by reference.
-*/
-void merge(std::vector<float> &by, std::vector<float>& byL, std::vector<float>& byR, std::vector<int> &A, std::vector<int>& aL, std::vector<int>& aR) {
-    // Scan through both vectors after modification, selecting the smallest in order every time, changing the order of A accordingly. 
-    int i = 0, j = 0;
-    while (i < byL.size() && j < byR.size()) {
-        if (byR[j] < byL[i]) {
-            by.push_back(byR[j]);
-            A.push_back(aR[2 * j]);
-            A.push_back(aR[2 * j + 1]);
-            j++;
-        } else { 
-            by.push_back(byL[i]);
-            A.push_back(aL[2 * i]);
-            A.push_back(aL[2 * i + 1]);
-            i++;
+ *  Inputs:
+ *   - by - vector size n that indicates the order
+ *   - A - vector size 2n that is sorted according to the order in by
+ *   - left - index of the leftmost variable under consideration in by
+ *   - mid - index of the middle variable under consideration in by
+ *   - right - index of the rightmost variable under consideration in by
+ *  Outputs:
+ *   None. Variables are passed by reference and modified accordingly. When a variable at by[i] is moved to by[j], then variables A[2i] and A[2i+1] are moved to A[2j] and A[2j+1] respectively.
+ */
+void mergeBy(std::vector<float>& by, std::vector<int> &A, int const left, int const mid, int const right)
+{
+    std::vector<float> byTmp(right-left+1);       // Preallocate space for temporary vectors to save time.
+    std::vector<int> aTmp(2 * (right-left+1));
+    int i = left, j = mid + 1, k = 0;
+
+    while (i <= mid && j <= right) {
+        if (by[i] <= by[j]) {
+            byTmp[k] = by[i];
+            aTmp[2*k] = A[2*i];
+            aTmp[2*k+1] = A[2 * i + 1];
+            ++i;
+            ++k;
+        } else {
+            byTmp[k] = by[j];
+            aTmp[2*k] = A[2 * j];
+            aTmp[2*k+1] = A[2 * j + 1];
+            ++j;
+            ++k;
         }
     }
-    while (i >= byL.size() && j < byR.size()) {
-        by.push_back(byR[j]);
-        A.push_back(aR[2 * j]);
-        A.push_back(aR[2 * j+1]);
-        j++;
+    while (i <= mid) {
+        byTmp[k] = by[i];
+        aTmp[2*k] = A[2 * i];
+        aTmp[2*k+1] = A[2 * i + 1];
+        ++i;
+        ++k;
     }
-    while (i < byL.size() && j >= byR.size()) {
-        by.push_back(byL[i]);
-        A.push_back(aL[2 * i]);
-        A.push_back(aL[2 * i+1]);
-        i++;
+    while (j <= right) {
+        byTmp[k] = by[j];
+        aTmp[2*k] = A[2 * j];
+        aTmp[2*k+1] = A[2 * j + 1];
+        ++j;
+        ++k;
     }
+    for (int i = left; i <= right; ++i) {
+        by[i] = byTmp[i - left];
+        A[2 * i] = aTmp[2 * (i - left)];
+        A[2 * i + 1] = aTmp[2 * (i - left) + 1];
+    }
+
 }
 
 /* mergeSortBy - perform merge sort in ascending direction on distance vector, changing the order of the indexes vector in the process.
-*  Inputs:
-*   - by: vector of size n to be sorted
-*   - A: vector of size 2n. If value x on position i in 'by' gets assigned the new position j, the values at A[2i,2i+1] will also move to A[2j,2j+1]
-*  Outputs:
-*   - None. The input vectors are passed by reference and are modified accordingly by the function.
-*/
-void mergeSortBy(std::vector<float> &by, std::vector<int> &A) {
-    assert(by.size() == A.size()/2);
+ *  Inputs:
+ *   - by: vector of size n to be sorted
+ *   - A: vector of size 2n. If value x on position i in 'by' gets assigned the new position j, the values at A[2i,2i+1] will also move to A[2j,2j+1]
+ *  Outputs:
+ *   - None. The input vectors are passed by reference and are modified accordingly by the function.
+ * 
+ *  Implementation of mergeSortBy() and mergeBy() are based on the implementation on: https://slaystudy.com/c-merge-sort-vector/ 
+ */
+void mergeSortBy(std::vector<float>& by, std::vector<int> &A, int const begin, int const end) {
+    assert(by.size() == A.size() / 2);
 
-    if (!(by.size() <= 1)) {                // The function is not executed if array size <= 1 (=exit condition)
-        std::vector<float> byL;             // left split &by
-        std::vector<float> byR;             // right split &by
-        std::vector<int> aL;                // left split &A
-        std::vector<int> aR;                // right split &A
-
-        // Put the means and indexes of the vectors into the left and right subvectors.
-        // Erase by and A in the process
-        int half = by.size() / 2;
-        for (int i = 0; i < by.size(); ++i)
-        {
-            if (i < half) {
-                byL.push_back(by[i]);
-                aL.push_back(A[2 * i]);
-                aL.push_back(A[2 * i + 1]);
-            } else {
-                byR.push_back(by[i]);
-                aR.push_back(A[2 * i]);
-                aR.push_back(A[2 * i + 1]);
-            }
-        }
-        // Empty by and A before moving sorted data back into it.
-        by.clear();
-        A.clear();
-
-        // Recursive call
-        mergeSortBy(byL, aL);
-        mergeSortBy(byR, aR);
-
-        // Merge
-        merge(by, byL, byR, A, aL, aR);
-    } 
+    if (begin >= end) {
+        return;
+    } else {
+        int mid = begin + (end - begin) / 2;
+        mergeSortBy(by, A, begin, mid);
+        mergeSortBy(by, A, mid + 1, end);
+        mergeBy(by, A, begin, mid, end);
+    }
 }
 
 
@@ -206,7 +198,7 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
         std::vector<float> means = findMeans(this->m_pScene, indexes, recursionDepth % 3);
 
         // Sort the triangles vector by means.
-        mergeSortBy(means,indexes);
+        mergeSortBy(means,indexes,0,means.size()-1);
 
         // Find the median in the middle of the sorted list.
         int medianIndex = means.size() / 2 - 1;
