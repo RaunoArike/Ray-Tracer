@@ -417,14 +417,14 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
         // to isolate the code that is only needed for the normal interpolation and texture mapping features.
         
 
-        int hmesh;
-        int hv0;
+        int hmesh; //index of mesh of the hit triangle
+        int hv0; //indexes of the hit vertices, used for 
         int hv1;
         int hv2;
         bool hit = intersectRayNode(ray, 0, hitInfo, features, hmesh, hv0, hv1, hv2);
-        if (hit) {
+        if (hit) { //draw hit triangle
             drawTriangle(m_pScene->meshes[hmesh].vertices[hv0], m_pScene->meshes[hmesh].vertices[hv1], m_pScene->meshes[hmesh].vertices[hv2]);
-            if (features.enableNormalInterp) {
+            if (features.enableNormalInterp) { //draw normals if normal interpolation is activated
                 drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv0].position, normalize(m_pScene->meshes[hmesh].vertices[hv0].normal)), glm::vec3(0, 1, 1));
                 drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv1].position, normalize(m_pScene->meshes[hmesh].vertices[hv1].normal)), glm::vec3(0, 1, 1));
                 drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv2].position, normalize(m_pScene->meshes[hmesh].vertices[hv2].normal)), glm::vec3(0, 1, 1));
@@ -435,6 +435,7 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
         return hit;
     }
 }
+//returns the distance of a node through f
 void getT(AxisAlignedBox box, Ray ray, float& f)
 {
     if (intersectRayWithShape(box, ray)) {
@@ -454,7 +455,7 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
     glm::vec3 upperCur(nodes[index].bounds[0][1], nodes[index].bounds[1][1], nodes[index].bounds[2][1]);
     AxisAlignedBox boxCur(lowerCur, upperCur);
 
-    drawAABB(boxCur, DrawMode::Wireframe, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
+    drawAABB(boxCur, DrawMode::Wireframe, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f); //draw currently visited Node
 
    
     if (!nodes[index].isParent) {
@@ -499,27 +500,27 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
         return false;
 
     } else {
-        int lc = nodes[index].indexes[0];
+        int lc = nodes[index].indexes[0]; //index of the left child node
         glm::vec3 lower(nodes[lc].bounds[0][0], nodes[lc].bounds[1][0], nodes[lc].bounds[2][0]);
         glm::vec3 upper(nodes[lc].bounds[0][1], nodes[lc].bounds[1][1], nodes[lc].bounds[2][1]);
-        AxisAlignedBox boxl(lower, upper);
+        AxisAlignedBox boxl(lower, upper); //aabb of left child
         float t = ray.t;
         
-        int rc = nodes[index].indexes[1];
+        int rc = nodes[index].indexes[1]; //index of right child note
         lower= glm::vec3(nodes[rc].bounds[0][0], nodes[rc].bounds[1][0], nodes[rc].bounds[2][0]);
         upper= glm::vec3(nodes[rc].bounds[0][1], nodes[rc].bounds[1][1], nodes[rc].bounds[2][1]);
-        AxisAlignedBox boxr(lower, upper);
-        float lct;
-        float rct;
-        getT(boxl,ray,lct);
+        AxisAlignedBox boxr(lower, upper); //aabb of right child
+        float lct; //distance t of left node
+        float rct; // distance t of right node
+        getT(boxl,ray,lct); //t gets set by getT
         getT(boxr, ray, rct);
-        if (lct != FLT_MAX && features.enableShading) {
+        if (lct != FLT_MAX && features.enableShading) {  //draw intersected node, if shading and bvh are enabled
             drawAABB(boxl, DrawMode::Wireframe, glm::vec3(1.0f, 1.0f, 0.05f), 0.1f);
         }
-        if (rct != FLT_MAX && features.enableShading) {
+        if (rct != FLT_MAX && features.enableShading) { //draw intersected node, if shading and bvh are enabled
             drawAABB(boxr, DrawMode::Wireframe, glm::vec3(1.0f, 1.0f, 0.05f), 0.1f);
         }
-        if (lct < rct) {
+        if (lct < rct) { // closest Node will be traversed first
             if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
                 return true;
             } else {
