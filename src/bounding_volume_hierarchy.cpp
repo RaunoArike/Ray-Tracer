@@ -419,7 +419,7 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
 
         std::priority_queue<pqNode, std::vector<pqNode>, pqNode> pq; // priority queue sorts for the smalles t value of pqNode
 
-        pqNode current(nodes[0]);
+        pqNode current(0);
 
         pq.push(current);
 
@@ -427,25 +427,25 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
 
             current = pq.top();
             pq.pop();
-            glm::vec3 lower(current.node.bounds[0][0], current.node.bounds[1][0], current.node.bounds[2][0]);
-            glm::vec3 upper(current.node.bounds[0][1], current.node.bounds[1][1], current.node.bounds[2][1]);
+            glm::vec3 lower(nodes[current.nodeIndex].bounds[0][0], nodes[current.nodeIndex].bounds[1][0], nodes[current.nodeIndex].bounds[2][0]);
+            glm::vec3 upper(nodes[current.nodeIndex].bounds[0][1], nodes[current.nodeIndex].bounds[1][1], nodes[current.nodeIndex].bounds[2][1]);
             AxisAlignedBox box(lower, upper);
 
             drawAABB(box, DrawMode::Wireframe, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f);
-            if (!current.node.isParent) {
+            if (!nodes[current.nodeIndex].isParent) {
 
-                for (int i = 0; i < current.node.indexes.size(); i = i + 2) {
+                for (int i = 0; i < nodes[current.nodeIndex].indexes.size(); i = i + 2) {
                     
 
-                    const auto triangle = m_pScene->meshes[current.node.indexes[i]].triangles[current.node.indexes[i + 1]];
-                    int mesh = current.node.indexes[i];
+                    const auto triangle = m_pScene->meshes[nodes[current.nodeIndex].indexes[i]].triangles[nodes[current.nodeIndex].indexes[i + 1]];
+                    int mesh = nodes[current.nodeIndex].indexes[i];
                     int v0 = triangle[0];
                     int v1 = triangle[1];
                     int v2 = triangle[2];
                     
 
                     if (intersectRayWithTriangle(m_pScene->meshes[mesh].vertices[v0].position,m_pScene->meshes[mesh].vertices[v1].position, m_pScene->meshes[mesh].vertices[v2].position, ray, hitInfo)) {
-                        hitInfo.material = m_pScene->meshes[current.node.indexes[i]].material;
+                        hitInfo.material = m_pScene->meshes[nodes[current.nodeIndex].indexes[i]].material;
                         hit = true;
                         
                         hmesh = mesh;
@@ -459,7 +459,7 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
                             hitInfo.barycentricCoord = barc;
                             hitInfo.texCoord = texC;
                             glm::vec3 interpolatedNormal = interpolateNormal(m_pScene->meshes[mesh].vertices[v0].normal, m_pScene->meshes[mesh].vertices[v1].normal, m_pScene->meshes[mesh].vertices[v2].normal, barc);
-                            hitInfo.normal = normalize(interpolatedNormal);
+                            hitInfo.normal = (interpolatedNormal);
 
                         } else {
                             glm::vec3 d1 = m_pScene->meshes[mesh].vertices[v1].position - m_pScene->meshes[mesh].vertices[v0].position;
@@ -478,8 +478,8 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
                 }
 
             } else {
-                for (int i : current.node.indexes) {
-                    pqNode child = pqNode(nodes[i]);
+                for (int i : nodes[current.nodeIndex].indexes) {
+                    pqNode child = pqNode(i);
                     if (intersectRayPQNode(ray, child)) {
                         pq.push(child);
                     }
@@ -491,8 +491,8 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
             while (!pq.empty()) {
                 current = pq.top();
                 pq.pop();
-                glm::vec3 lower(current.node.bounds[0][0], current.node.bounds[1][0], current.node.bounds[2][0]);
-                glm::vec3 upper(current.node.bounds[0][1], current.node.bounds[1][1], current.node.bounds[2][1]);
+                glm::vec3 lower(nodes[current.nodeIndex].bounds[0][0], nodes[current.nodeIndex].bounds[1][0], nodes[current.nodeIndex].bounds[2][0]);
+                glm::vec3 upper(nodes[current.nodeIndex].bounds[0][1], nodes[current.nodeIndex].bounds[1][1], nodes[current.nodeIndex].bounds[2][1]);
                 AxisAlignedBox box(lower, upper);
 
                 drawAABB(box, DrawMode::Wireframe, glm::vec3(1.0f, 1.0f, 0.05f), 0.1f);
@@ -518,8 +518,8 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
 bool BoundingVolumeHierarchy::intersectRayPQNode(Ray& ray, pqNode& node) const
 {
 
-    glm::vec3 lower(node.node.bounds[0][0], node.node.bounds[1][0], node.node.bounds[2][0]);
-    glm::vec3 upper(node.node.bounds[0][1], node.node.bounds[1][1], node.node.bounds[2][1]);
+    glm::vec3 lower(nodes[node.nodeIndex].bounds[0][0], nodes[node.nodeIndex].bounds[1][0], nodes[node.nodeIndex].bounds[2][0]);
+    glm::vec3 upper(nodes[node.nodeIndex].bounds[0][1], nodes[node.nodeIndex].bounds[1][1], nodes[node.nodeIndex].bounds[2][1]);
     AxisAlignedBox box(lower, upper);
     float t = ray.t;
     if (intersectRayWithShape(box, ray)) {
