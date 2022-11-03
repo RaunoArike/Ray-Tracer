@@ -47,7 +47,7 @@ float testVisibilityLightSample(const glm::vec3& samplePos, const glm::vec3& deb
     float t = glm::distance(intersection, samplePos);
 
     // Compute ray from intersection to light source
-    Ray intersectionToLight { intersection + glm::normalize(samplePos - intersection) * 0.00001f, glm::normalize(samplePos - intersection), t }; // add small offset factor to reduce noise
+    Ray intersectionToLight { intersection + glm::normalize(samplePos - intersection) * 0.001f, glm::normalize(samplePos - intersection), t }; // add small offset factor to reduce noise
 
     // Use bvh to find any triangles between light source and intersection
     bool result = bvh.intersect(intersectionToLight, hitInfo, features);
