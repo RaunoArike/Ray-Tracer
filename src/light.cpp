@@ -44,14 +44,10 @@ float testVisibilityLightSample(const glm::vec3& samplePos, const glm::vec3& deb
 {
     // Compute intersection point
     glm::vec3 intersection = ray.origin + ray.t * ray.direction;
-
-    // compute parameters of the ray from intersection to light source
-    glm::vec3 direction = glm::normalize(samplePos - intersection);
     float t = glm::distance(intersection, samplePos);
-    glm::vec3 offset = direction * 0.00001f;
 
     // Compute ray from intersection to light source
-    Ray intersectionToLight { intersection + offset, direction, t }; // add small offset factor to reduce noise
+    Ray intersectionToLight { intersection + glm::normalize(samplePos - intersection) * 0.00001f, glm::normalize(samplePos - intersection), t }; // add small offset factor to reduce noise
 
     // Use bvh to find any triangles between light source and intersection
     bool result = bvh.intersect(intersectionToLight, hitInfo, features);
@@ -59,13 +55,12 @@ float testVisibilityLightSample(const glm::vec3& samplePos, const glm::vec3& deb
     if (result) {
         drawRay(intersectionToLight, { 1, 0, 0 }); // Red indicates no direct light from this source
         return 0.0;
+    } else {
+        // reset origin and t for drawing the ray
+        intersectionToLight.origin = intersection;
+        intersectionToLight.t = t;
+        drawRay(intersectionToLight, debugColor); // Passed colour indicates direct light
     }
-
-    // reset origin and t for drawing the ray
-    intersectionToLight.origin = intersection;
-    intersectionToLight.t = t;
-
-    drawRay(intersectionToLight, debugColor); // Passed colour indicates direct light
     return 1.0;     // Return 1.0 if there is direct light from the sample position.
 }
 
@@ -139,7 +134,7 @@ glm::vec3 computeLightContribution(const Scene& scene, const BvhInterface& bvh, 
                 glm::vec3 samplePos { 0.0f };
                 glm::vec3 sampleColor { 0.0f };
                 if (features.enableSoftShadow) {
-                    float paral_sample_size = 80;
+                    float paral_sample_size = 100;
                     for (int i = 0; i < paral_sample_size; i++) {
                         // calculate sample position and color
                         sampleParallelogramLight(parallelogramLight, samplePos, sampleColor);
