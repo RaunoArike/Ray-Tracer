@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 #include <set>
 #include <screen.cpp>
+#include <queue>
 
 /*** Helper functions ***/
 
@@ -349,13 +350,19 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
 {
     
     
-    Ray nZero;
-    Ray nOne ;
-    Ray nTwo;
-    Ray nPoint ;
+    
+    int hv0; // vertices of hit triangle
+    int hv1; // needed to draw visual debug for normal interpolation and traversal
+    int hv2;
+    int hmesh;
+
     // If BVH is not enabled, use the naive implementation.
     if (!features.enableAccelStructure) {
         bool hit = false;
+        Mesh hitmash;
+        Vertex hv0;
+        Vertex hv1;
+        Vertex hv2;
         // Intersect with all triangles of all meshes.
         for (const auto& mesh : m_pScene->meshes) {
             for (const auto& tri : mesh.triangles) {
@@ -365,21 +372,21 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
                 if (intersectRayWithTriangle(v0.position, v1.position, v2.position, ray, hitInfo)) {
                     
                     hitInfo.material = mesh.material;
+                    
                     hit = true;
-                    glm::vec3 barc = computeBarycentricCoord(v0.position, v1.position, v2.position, ray.origin + ray.t * ray.direction);
-                    glm::vec2 texC = barc.x * v0.texCoord + barc.y * v1.texCoord + barc.z * v2.texCoord;
-                    hitInfo.barycentricCoord = barc;
-                    hitInfo.texCoord = texC;
+                    hv0 = v0;
+                    hv1 = v1;
+                    hv2 = v2;
                     
                     if (features.enableNormalInterp) { //interpolate normal and update information to draw normals for visual debug
                         
-                        
+                        glm::vec3 barc = computeBarycentricCoord(v0.position, v1.position, v2.position, ray.origin + ray.t * ray.direction);
+                        glm::vec2 texC = barc.x * v0.texCoord + barc.y * v1.texCoord + barc.z * v2.texCoord;
+                        hitInfo.barycentricCoord = barc;
+                        hitInfo.texCoord = texC;
                         glm::vec3 interpolatedNormal = interpolateNormal(v0.normal, v1.normal, v2.normal, barc);
                         hitInfo.normal = normalize(interpolatedNormal);
-                        nZero = Ray { v0.position, v0.normal, 1 };
-                        nOne = Ray { v1.position, v1.normal, 1 };
-                        nTwo = Ray { v2.position, v2.normal, 1 };
-                        nPoint = Ray { ray.origin + ray.t * ray.direction, hitInfo.normal, 1 };
+                        
                         
                         
                         
@@ -397,20 +404,158 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
         }
        
         
-        if (hit == true && features.enableNormalInterp) { // if a hit occurs and normal interpolation enabled, draw normals
-            drawRay(nZero, glm::vec3(1, 0, 0));
-            drawRay(nOne, glm::vec3(1, 0, 0));
-            drawRay(nTwo, glm::vec3(1, 0, 0));
-            drawRay(nPoint, glm::vec3(0, 0, 1));
-        }
+        
         // Intersect with spheres.
         for (const auto& sphere : m_pScene->spheres)
             hit |= intersectRayWithShape(sphere, ray, hitInfo);
+        if (hit && features.enableNormalInterp) {
+            drawRay(Ray(hv0.position,normalize(hv0.normal),1),glm::vec3(0,1,1));
+            drawRay(Ray(hv1.position, normalize(hv1.normal),1), glm::vec3(0, 1, 1));
+            drawRay(Ray(hv2.position, normalize(hv2.normal),1), glm::vec3(0, 1, 1));
+            drawRay(Ray(ray.origin+ray.t*ray.direction, hitInfo.normal,1), glm::vec3(1, 0, 0));
+        }
+        
         return hit;
     } else {
         // TODO: implement here the bounding volume hierarchy traversal.
         // Please note that you should use `features.enableNormalInterp` and `features.enableTextureMapping`
         // to isolate the code that is only needed for the normal interpolation and texture mapping features.
-        return false;
+        
+
+        int hmesh; //index of mesh of the hit triangle
+        int hv0; //indexes of the hit vertices, used for 
+        int hv1;
+        int hv2;
+        bool hit = intersectRayNode(ray, 0, hitInfo, features, hmesh, hv0, hv1, hv2);
+        if (hit) { //draw hit triangle
+            drawTriangle(m_pScene->meshes[hmesh].vertices[hv0], m_pScene->meshes[hmesh].vertices[hv1], m_pScene->meshes[hmesh].vertices[hv2]);
+            if (features.enableNormalInterp) { //draw normals if normal interpolation is activated
+                drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv0].position, normalize(m_pScene->meshes[hmesh].vertices[hv0].normal),1), glm::vec3(0, 1, 1));
+                drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv1].position,normalize(m_pScene->meshes[hmesh].vertices[hv1].normal),1), glm::vec3(0, 1, 1));
+                drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv2].position, normalize(m_pScene->meshes[hmesh].vertices[hv2].normal),1), glm::vec3(0, 1, 1));
+                drawRay(Ray(ray.origin + ray.t * ray.direction, hitInfo.normal,1), glm::vec3(1, 0, 0));
+            }
+            return true;
+        }
+        return hit;
     }
 }
+//returns the distance of a node through f
+void getT(AxisAlignedBox box, Ray ray, float& f)
+{
+    
+    if (intersectRayWithShape(box, ray)) {
+
+        f = ray.t;
+    } else {
+        f = FLT_MAX;
+    }
+}
+
+bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hitInfo, const Features& features, int& hmesh, int& hv0, int& hv1, int& hv2) const
+                                              
+                                              
+{
+    
+    glm::vec3 lowerCur (nodes[index].bounds[0][0], nodes[index].bounds[1][0], nodes[index].bounds[2][0]);
+    glm::vec3 upperCur(nodes[index].bounds[0][1], nodes[index].bounds[1][1], nodes[index].bounds[2][1]);
+    AxisAlignedBox boxCur(lowerCur, upperCur);
+
+    drawAABB(boxCur, DrawMode::Wireframe, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f); //draw currently visited Node
+
+   
+    if (!nodes[index].isParent) {
+        bool hit = false;
+        for (int i = 0; i < nodes[index].indexes.size(); i = i + 2) {
+
+            const auto triangle = m_pScene->meshes[nodes[index].indexes[i]].triangles[nodes[index].indexes[i + 1]];
+            int mesh = nodes[index].indexes[i];
+            int v0 = triangle[0];
+            int v1 = triangle[1];
+            int v2 = triangle[2];
+
+            if (intersectRayWithTriangle(m_pScene->meshes[mesh].vertices[v0].position, m_pScene->meshes[mesh].vertices[v1].position, m_pScene->meshes[mesh].vertices[v2].position, ray, hitInfo)) {
+                hitInfo.material = m_pScene->meshes[nodes[index].indexes[i]].material;
+                
+                hit = true;
+                hmesh = mesh;
+                hv0 = triangle[0];
+                hv1 = triangle[1];
+                hv2 = triangle[2];
+                if (features.enableNormalInterp) { // interpolate normal and update information to draw normals for visual debug
+                    
+                    glm::vec3 barc = computeBarycentricCoord(m_pScene->meshes[mesh].vertices[v0].position, m_pScene->meshes[mesh].vertices[v1].position, m_pScene->meshes[mesh].vertices[v2].position, ray.origin + ray.t * ray.direction);
+                    glm::vec2 texC = barc.x * m_pScene->meshes[mesh].vertices[v0].texCoord + barc.y * m_pScene->meshes[mesh].vertices[v1].texCoord + barc.z * m_pScene->meshes[mesh].vertices[v2].texCoord;
+                    hitInfo.barycentricCoord = barc;
+                    hitInfo.texCoord = texC;
+                    glm::vec3 interpolatedNormal = interpolateNormal(m_pScene->meshes[mesh].vertices[v0].normal, m_pScene->meshes[mesh].vertices[v1].normal, m_pScene->meshes[mesh].vertices[v2].normal, barc);
+                    hitInfo.normal = normalize(interpolatedNormal);
+                    
+
+                } else {
+                    glm::vec3 d1 = m_pScene->meshes[mesh].vertices[v1].position - m_pScene->meshes[mesh].vertices[v0].position;
+                    glm::vec3 d2 = m_pScene->meshes[mesh].vertices[v2].position - m_pScene->meshes[mesh].vertices[v1].position;
+
+                    hitInfo.normal = normalize(glm::cross(d1, d2));
+                   
+                }
+                
+            }
+            
+           
+        }
+        return hit;
+
+    } else {
+        int lc = nodes[index].indexes[0]; //index of the left child node
+        glm::vec3 lower(nodes[lc].bounds[0][0], nodes[lc].bounds[1][0], nodes[lc].bounds[2][0]);
+        glm::vec3 upper(nodes[lc].bounds[0][1], nodes[lc].bounds[1][1], nodes[lc].bounds[2][1]);
+        AxisAlignedBox boxl(lower, upper); //aabb of left child
+        
+        int rc = nodes[index].indexes[1]; //index of right child note
+        lower= glm::vec3(nodes[rc].bounds[0][0], nodes[rc].bounds[1][0], nodes[rc].bounds[2][0]);
+        upper= glm::vec3(nodes[rc].bounds[0][1], nodes[rc].bounds[1][1], nodes[rc].bounds[2][1]);
+        AxisAlignedBox boxr(lower, upper); //aabb of right child
+        float lct; //distance t of left node
+        float rct; // distance t of right node
+        getT(boxl,ray,lct); //t gets set by getT
+        getT(boxr, ray, rct);
+        if (lct != FLT_MAX && features.enableShading) {  //draw intersected node, if shading and bvh are enabled
+            drawAABB(boxl, DrawMode::Wireframe, glm::vec3(1.0f, 1.0f, 0.05f), 0.1f);
+        }
+        if (rct != FLT_MAX && features.enableShading) { //draw intersected node, if shading and bvh are enabled
+            drawAABB(boxr, DrawMode::Wireframe, glm::vec3(1.0f, 1.0f, 0.05f), 0.1f);
+        }
+        if (lct < rct) { // closest Node will be traversed first
+            if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+                return true;
+            } else {
+                if (rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+                    return true;
+                }
+            }
+        } else {
+            if (rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+                return true;
+            } else {
+                if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+                    return true;
+                }
+            }
+        
+        }
+        
+        
+
+    }
+    
+
+    return false;
+}
+
+
+
+    
+   
+    
+
