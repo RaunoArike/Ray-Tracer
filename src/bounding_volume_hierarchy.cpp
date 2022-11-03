@@ -404,10 +404,10 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
         for (const auto& sphere : m_pScene->spheres)
             hit |= intersectRayWithShape(sphere, ray, hitInfo);
         if (hit && features.enableNormalInterp) {
-            drawRay(Ray(hv0.position,normalize(hv0.normal)),glm::vec3(0,1,1));
-            drawRay(Ray(hv1.position, normalize(hv1.normal)), glm::vec3(0, 1, 1));
-            drawRay(Ray(hv2.position, normalize(hv2.normal)), glm::vec3(0, 1, 1));
-            drawRay(Ray(ray.origin+ray.t*ray.direction, hitInfo.normal), glm::vec3(1, 0, 0));
+            drawRay(Ray(hv0.position,normalize(hv0.normal),1),glm::vec3(0,1,1));
+            drawRay(Ray(hv1.position, normalize(hv1.normal),1), glm::vec3(0, 1, 1));
+            drawRay(Ray(hv2.position, normalize(hv2.normal),1), glm::vec3(0, 1, 1));
+            drawRay(Ray(ray.origin+ray.t*ray.direction, hitInfo.normal,1), glm::vec3(1, 0, 0));
         }
         
         return hit;
@@ -425,10 +425,10 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
         if (hit) { //draw hit triangle
             drawTriangle(m_pScene->meshes[hmesh].vertices[hv0], m_pScene->meshes[hmesh].vertices[hv1], m_pScene->meshes[hmesh].vertices[hv2]);
             if (features.enableNormalInterp) { //draw normals if normal interpolation is activated
-                drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv0].position, normalize(m_pScene->meshes[hmesh].vertices[hv0].normal)), glm::vec3(0, 1, 1));
-                drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv1].position, normalize(m_pScene->meshes[hmesh].vertices[hv1].normal)), glm::vec3(0, 1, 1));
-                drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv2].position, normalize(m_pScene->meshes[hmesh].vertices[hv2].normal)), glm::vec3(0, 1, 1));
-                drawRay(Ray(ray.origin + ray.t * ray.direction, hitInfo.normal), glm::vec3(1, 0, 0));
+                drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv0].position, normalize(m_pScene->meshes[hmesh].vertices[hv0].normal),1), glm::vec3(0, 1, 1));
+                drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv1].position,normalize(m_pScene->meshes[hmesh].vertices[hv1].normal),1), glm::vec3(0, 1, 1));
+                drawRay(Ray(m_pScene->meshes[hmesh].vertices[hv2].position, normalize(m_pScene->meshes[hmesh].vertices[hv2].normal),1), glm::vec3(0, 1, 1));
+                drawRay(Ray(ray.origin + ray.t * ray.direction, hitInfo.normal,1), glm::vec3(1, 0, 0));
             }
             return true;
         }
@@ -438,6 +438,7 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
 //returns the distance of a node through f
 void getT(AxisAlignedBox box, Ray ray, float& f)
 {
+    
     if (intersectRayWithShape(box, ray)) {
 
         f = ray.t;
@@ -482,7 +483,7 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
                     hitInfo.barycentricCoord = barc;
                     hitInfo.texCoord = texC;
                     glm::vec3 interpolatedNormal = interpolateNormal(m_pScene->meshes[mesh].vertices[v0].normal, m_pScene->meshes[mesh].vertices[v1].normal, m_pScene->meshes[mesh].vertices[v2].normal, barc);
-                    hitInfo.normal = (interpolatedNormal);
+                    hitInfo.normal = normalize(interpolatedNormal);
                     return true;
 
                 } else {
