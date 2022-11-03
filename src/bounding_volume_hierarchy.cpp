@@ -460,6 +460,7 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
 
    
     if (!nodes[index].isParent) {
+        bool hit = false;
         for (int i = 0; i < nodes[index].indexes.size(); i = i + 2) {
 
             const auto triangle = m_pScene->meshes[nodes[index].indexes[i]].triangles[nodes[index].indexes[i + 1]];
@@ -471,41 +472,40 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
             if (intersectRayWithTriangle(m_pScene->meshes[mesh].vertices[v0].position, m_pScene->meshes[mesh].vertices[v1].position, m_pScene->meshes[mesh].vertices[v2].position, ray, hitInfo)) {
                 hitInfo.material = m_pScene->meshes[nodes[index].indexes[i]].material;
                 
-
+                hit = true;
                 hmesh = mesh;
                 hv0 = triangle[0];
                 hv1 = triangle[1];
                 hv2 = triangle[2];
                 if (features.enableNormalInterp) { // interpolate normal and update information to draw normals for visual debug
-
+                    
                     glm::vec3 barc = computeBarycentricCoord(m_pScene->meshes[mesh].vertices[v0].position, m_pScene->meshes[mesh].vertices[v1].position, m_pScene->meshes[mesh].vertices[v2].position, ray.origin + ray.t * ray.direction);
                     glm::vec2 texC = barc.x * m_pScene->meshes[mesh].vertices[v0].texCoord + barc.y * m_pScene->meshes[mesh].vertices[v1].texCoord + barc.z * m_pScene->meshes[mesh].vertices[v2].texCoord;
                     hitInfo.barycentricCoord = barc;
                     hitInfo.texCoord = texC;
                     glm::vec3 interpolatedNormal = interpolateNormal(m_pScene->meshes[mesh].vertices[v0].normal, m_pScene->meshes[mesh].vertices[v1].normal, m_pScene->meshes[mesh].vertices[v2].normal, barc);
                     hitInfo.normal = normalize(interpolatedNormal);
-                    return true;
+                    
 
                 } else {
                     glm::vec3 d1 = m_pScene->meshes[mesh].vertices[v1].position - m_pScene->meshes[mesh].vertices[v0].position;
                     glm::vec3 d2 = m_pScene->meshes[mesh].vertices[v2].position - m_pScene->meshes[mesh].vertices[v1].position;
 
                     hitInfo.normal = normalize(glm::cross(d1, d2));
-                    return true;
+                   
                 }
                 
             }
             
            
         }
-        return false;
+        return hit;
 
     } else {
         int lc = nodes[index].indexes[0]; //index of the left child node
         glm::vec3 lower(nodes[lc].bounds[0][0], nodes[lc].bounds[1][0], nodes[lc].bounds[2][0]);
         glm::vec3 upper(nodes[lc].bounds[0][1], nodes[lc].bounds[1][1], nodes[lc].bounds[2][1]);
         AxisAlignedBox boxl(lower, upper); //aabb of left child
-        float t = ray.t;
         
         int rc = nodes[index].indexes[1]; //index of right child note
         lower= glm::vec3(nodes[rc].bounds[0][0], nodes[rc].bounds[1][0], nodes[rc].bounds[2][0]);
