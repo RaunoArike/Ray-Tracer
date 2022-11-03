@@ -4,7 +4,7 @@
 #include "screen.h"
 #include <framework/trackball.h>
 #define EPSILON 0.0000001
-#define MAX_DEPTH 30
+#define MAX_DEPTH 20
 #ifdef NDEBUG
 #include <omp.h>
 #endif
@@ -15,6 +15,15 @@ glm::vec3 getFinalColor(const Scene& scene, const BvhInterface& bvh, Ray ray, co
     if (bvh.intersect(ray, hitInfo, features)) {
         
         glm::vec3 Lo = computeLightContribution(scene, bvh, features, ray, hitInfo);
+
+        if (features.extra.enableTransparency) {
+            // if alpha is less than one and ray depth is less than 20, do alpha blending
+            if (hitInfo.material.transparency < 1 && rayDepth < MAX_DEPTH) {
+                auto intersection = ray.origin + ray.direction * (ray.t + 0.0001f); // add a small offset to the ray
+                auto rayContinuation = Ray { intersection, ray.direction };
+                Lo = hitInfo.material.transparency * Lo + (1 - hitInfo.material.transparency) * getFinalColor(scene, bvh, rayContinuation, features, rayDepth + 1);
+            }
+        }
 
         if (features.enableRecursive) {
             Ray reflection = computeReflectionRay(ray, hitInfo);
