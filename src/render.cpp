@@ -81,25 +81,34 @@ float randNr(float range_start, float range_end)
 glm::vec3 depthOfFieldCalc(const Scene& scene, const BvhInterface& bvh, const Ray& ray, const Features& features, const Trackball& camera, Screen& screen)
 {
     if (features.extra.enableDepthOfField) {
-        auto f = features.extra.enableDepthOfFieldF;
+        auto focalLength = features.extra.enableDepthOfFieldF;
         auto aperture = features.extra.enableDepthOfFieldAperture;
         auto sampleCount = features.extra.enableDepthOfFieldSampleCount;
-        auto c = ray.origin + f * ray.direction;
+        
+        auto focalPoint = ray.origin + focalLength * ray.direction;
+        glm::vec3 color { 0.0f };
 
-        glm::vec3 avgColor { 0.0f };
         for (int i = 0; i < sampleCount; i++) {
+            // finding a random point on the aperture
             auto vecToPoint = glm::normalize(randNr(0.0f, 1.0f) * camera.up() + randNr(0.0f, 1.0f) * camera.left()) * aperture;
             vecToPoint.x = randNr(-1.0f, 1.0f) * vecToPoint.x;
             vecToPoint.y = randNr(-1.0f, 1.0f) * vecToPoint.y;
             vecToPoint.z = randNr(-1.0f, 1.0f) * vecToPoint.z;
+            // vector from the origin of the camera ray to the randomly chosen point on the aperture
             auto startingPoint = ray.origin + vecToPoint;
-            auto direction = glm::normalize(c - startingPoint);
-            auto apertureRay = Ray { startingPoint, ray.direction };
-            avgColor += getFinalColor(scene, bvh, apertureRay, features);
+            auto direction = glm::normalize(focalPoint - startingPoint);
+            // ray from the point on the aperture to the focal point
+            auto apertureRay = Ray { startingPoint, direction };
+            color += getFinalColor(scene, bvh, apertureRay, features);
         }
 
-        auto res = avgColor / float(sampleCount);
-        return res;
+        // average the result from all samples
+        auto avgColor = color / float(sampleCount);
+
+        // show the focal point for visual debug
+        drawRay(Ray { ray.origin, ray.direction, focalLength }, avgColor);
+
+        return avgColor;
     } else {
         return getFinalColor(scene, bvh, ray, features);
     }

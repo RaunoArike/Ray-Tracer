@@ -324,12 +324,12 @@ int main(int argc, char** argv)
                     drawSceneOpenGL(scene);
                 }
                 if (optDebugRay) {
-                    // Call getFinalColor for the debug ray. Ignore the result but tell the function that it should
+                    // Call depthOfFieldCalc for the debug ray. Ignore the result but tell the function that it should
                     // draw the rays instead.
                     enableDebugDraw = true;
                     glDisable(GL_LIGHTING);
                     glDepthFunc(GL_LEQUAL);
-                    (void)getFinalColor(scene, bvh, *optDebugRay, config.features);
+                    (void)depthOfFieldCalc(scene, bvh, *optDebugRay, config.features, camera, screen);
                     enableDebugDraw = false;
                 }
                 glPopAttrib();
