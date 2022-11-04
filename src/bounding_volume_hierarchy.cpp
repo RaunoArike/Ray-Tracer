@@ -236,15 +236,6 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
     }
 }
 
-int BoundingVolumeHierarchy::getMaxTrianglesPerLeaf() {
-    int out = 0;
-    for (Node node : this->nodes) {
-        if (!node.isParent && node.indexes.size() / 2 > out)
-            out = node.indexes.size() / 2;
-    }
-    return out;
-}
-
 /* BoundingVolumeHierarchy - class constructor
 *  Outputs:
 *   - Creates an instance of a BHV class.
