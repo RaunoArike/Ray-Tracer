@@ -9,6 +9,7 @@
 #include <screen.cpp>
 #include <queue>
 
+
 /*** Helper functions ***/
 
 
@@ -78,7 +79,10 @@ void rootNodeHelper(Scene* pScene, std::vector<int> & indexes, std::vector<std::
 /* findMeans - create vector means that holds the means of triangles in pScene at each index along a specific dimension.
  *  Inputs:
  *   - pScene - pointer to the scene
- *   - indexes -
+ *   - indexes - vector holding the indexes of the triangles.
+ *   - dimension - integer indicating the dimension along which to find the mean.
+ *  Outputs:
+ *   - means - vector holding the centroids of all triangles.
  */
 std::vector<float> findMeans(Scene* pScene, std::vector<int>& indexes, int dimension)
 {
