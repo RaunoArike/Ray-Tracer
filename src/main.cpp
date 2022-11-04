@@ -96,6 +96,7 @@ int main(int argc, char** argv)
         });
 
         int selectedLightIdx = scene.lights.empty() ? -1 : 0;
+        int selectedTransparencyIdx = scene.meshes.empty() && scene.spheres.empty() ? -1 : 0;
         while (!window.shouldClose()) {
             window.updateInput();
 
@@ -150,6 +151,34 @@ int main(int argc, char** argv)
                 ImGui::Checkbox("Texture filtering(mipmapping)", &config.features.extra.enableMipmapTextureFiltering);
                 ImGui::Checkbox("Glossy reflections", &config.features.extra.enableGlossyReflection);
                 ImGui::Checkbox("Transparency", &config.features.extra.enableTransparency);
+                if (config.features.extra.enableTransparency) {
+                    std::vector<std::string> options;
+                    options.push_back("None");
+                    // push all meshes in the scene to the list of options
+                    for (size_t i = 0; i < scene.meshes.size(); i++) {
+                        options.push_back("Mesh " + std::to_string(i));
+                    }
+                    // push all spheres in the scene to the list of options
+                    for (size_t i = 0; i < scene.spheres.size(); i++) {
+                        options.push_back("Sphere " + std::to_string(i));
+                    }
+                    std::vector<const char*> optionsPointers;
+                    std::transform(std::begin(options), std::end(options), std::back_inserter(optionsPointers), [](const auto& str) { return str.c_str(); });
+
+                    ++selectedTransparencyIdx;
+                    ImGui::Combo("Selected option", &selectedTransparencyIdx, optionsPointers.data(), static_cast<int>(optionsPointers.size()));
+                    --selectedTransparencyIdx;
+
+                    if (selectedTransparencyIdx >= 0) {
+                        selectedTransparencyIdx = size_t(selectedTransparencyIdx);
+                        if (selectedTransparencyIdx < scene.meshes.size()) {
+                            ImGui::SliderFloat("alpha", &scene.meshes[selectedTransparencyIdx].material.transparency, 0.0f, 1.0f);
+                        } else {
+                            size_t sphereIdx = selectedTransparencyIdx - scene.meshes.size();
+                            ImGui::SliderFloat("alpha", &scene.spheres[sphereIdx].material.transparency, 0.0f, 1.0f);
+                        }
+                    }
+                }
                 ImGui::Checkbox("Depth of field", &config.features.extra.enableDepthOfField);
             }
             ImGui::Separator();
