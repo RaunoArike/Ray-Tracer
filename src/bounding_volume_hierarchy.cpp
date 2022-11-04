@@ -463,9 +463,9 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
 
     drawAABB(boxCur, DrawMode::Wireframe, glm::vec3(0.05f, 1.0f, 0.05f), 0.1f); //draw currently visited Node
 
-   
+   bool hit = false;
     if (!nodes[index].isParent) {
-        bool hit = false;
+        
         for (int i = 0; i < nodes[index].indexes.size(); i = i + 2) {
 
             const auto triangle = m_pScene->meshes[nodes[index].indexes[i]].triangles[nodes[index].indexes[i + 1]];
@@ -504,7 +504,7 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
             
            
         }
-        return hit;
+        
 
     } else {
         int lc = nodes[index].indexes[0]; //index of the left child node
@@ -526,21 +526,21 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
         if (rct != FLT_MAX && features.enableShading) { //draw intersected node, if shading and bvh are enabled
             drawAABB(boxr, DrawMode::Wireframe, glm::vec3(1.0f, 1.0f, 0.05f), 0.1f);
         }
-        if (lct < rct) { // closest Node will be traversed first
+        if (lct <= rct) { // closest Node will be traversed first
             if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
-                return true;
-            } else {
-                if (rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
-                    return true;
-                }
+               hit= true;
+            } 
+            if (rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+                hit= true;
+                
             }
         } else {
             if (rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
-                return true;
-            } else {
-                if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
-                    return true;
-                }
+                hit= true;
+            } 
+            if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+                hit= true;
+                
             }
         
         }
@@ -550,7 +550,7 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
     }
     
 
-    return false;
+    return hit;
 }
 
 
