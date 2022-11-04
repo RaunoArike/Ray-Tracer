@@ -533,18 +533,18 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
             drawAABB(boxr, DrawMode::Wireframe, glm::vec3(1.0f, 1.0f, 0.05f), 0.1f);
         }
         if (lct <= rct) { // closest Node will be traversed first
-            if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+            if (ray.t>lct&&lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
                hit= true;
             } 
-            if (rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+            if (ray.t>rct&&rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
                 hit= true;
                 
             }
         } else {
-            if (rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+            if (ray.t>rct &&rct != FLT_MAX && intersectRayNode(ray, rc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
                 hit= true;
             } 
-            if (lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
+            if (ray.t>lct&&lct != FLT_MAX && intersectRayNode(ray, lc, hitInfo, features, hmesh, hv0, hv1, hv2)) {
                 hit= true;
                 
             }
