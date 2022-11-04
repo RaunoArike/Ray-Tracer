@@ -8,6 +8,7 @@ DISABLE_WARNINGS_POP()
 #include <cmath>
 #include <iostream>
 #include <random>
+#include <texture.cpp>
 
 
 // returns a random number from a uniform distribution
@@ -149,6 +150,10 @@ glm::vec3 computeLightContribution(const Scene& scene, const BvhInterface& bvh, 
 
     } else {
         // If shading is disabled, return the albedo of the material.
+        if (features.enableTextureMapping && hitInfo.material.kdTexture) {
+            Image tex = *hitInfo.material.kdTexture;
+            return acquireTexel(tex, hitInfo.texCoord, features) * hitInfo.material.kd;
+        }
         return hitInfo.material.kd;
         
         
