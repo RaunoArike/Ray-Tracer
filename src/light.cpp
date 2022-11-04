@@ -152,7 +152,7 @@ glm::vec3 computeLightContribution(const Scene& scene, const BvhInterface& bvh, 
         // If shading is disabled, return the albedo of the material.
         if (features.enableTextureMapping && hitInfo.material.kdTexture) {
             Image tex = *hitInfo.material.kdTexture;
-            return acquireTexel(tex, hitInfo.texCoord, features) * hitInfo.material.kd;
+            return acquireTexel(tex, hitInfo.texCoord, features) ;
         }
         return hitInfo.material.kd;
         
