@@ -183,7 +183,7 @@ int main(int argc, char** argv)
                 if (config.features.extra.enableDepthOfField) {
                     ImGui::SliderFloat("f", &config.features.extra.enableDepthOfFieldF, 1.0f, 10.0f);
                     ImGui::SliderFloat("Aperture", &config.features.extra.enableDepthOfFieldAperture, 0.0f, 0.1f);
-                    ImGui::SliderInt("Number of samples", &config.features.extra.enableDepthOfFieldSampleCount, 0, 64);
+                    ImGui::SliderInt("Number of samples", &config.features.extra.enableDepthOfFieldSampleCount, 1, 150);
                 }
             }
             ImGui::Separator();
