@@ -29,6 +29,8 @@ public:
     // Helper function for constructor. Grows the tree using recursion.
     void growBVH(int nodeIndex, int recursionDepth);
 
+    int getMaxTrianglesPerLeaf();
+
     // Constructor. Receives the scene and builds the bounding volume hierarchy.
     BoundingVolumeHierarchy(Scene* pScene);
 

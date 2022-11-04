@@ -232,6 +232,15 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
     }
 }
 
+int BoundingVolumeHierarchy::getMaxTrianglesPerLeaf() {
+    int out = 0;
+    for (Node node : this->nodes) {
+        if (!node.isParent && node.indexes.size() / 2 > out)
+            out = node.indexes.size() / 2;
+    }
+    return out;
+}
+
 /* BoundingVolumeHierarchy - class constructor
 *  Outputs:
 *   - Creates an instance of a BHV class.
@@ -239,6 +248,8 @@ void BoundingVolumeHierarchy::growBVH(int nodeIndex, int recursionDepth) {
 BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
     : m_pScene(pScene)
 {
+    clock_t time = clock();
+
     // Create root node containing all triangles in the scene and an AABB for the entire scene, set to false to indicate it's a leaf node.
     std::vector<int> indexes;
     std::vector<std::vector<float>> bounds;
@@ -252,6 +263,12 @@ BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
 
     // Recursively create the BVH.
     growBVH(0,0);
+
+    std::cout << "BVH creation required " << (float)(clock() - time) / CLOCKS_PER_SEC << " s.\n";
+    std::cout << "Model number: " << pScene->type << "\n";
+    std::cout << "Number of triangles: " << indexes.size() / 2 << "\n";
+    std::cout << "BVH levels: " << this->m_numLevels << "\n";
+    std::cout << "Maximum triangles per node: " << this->getMaxTrianglesPerLeaf() << "\n\n";
 }
 
 // Return the depth of the tree that you constructed. This is used to tell the
