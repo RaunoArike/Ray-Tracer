@@ -382,12 +382,13 @@ bool BoundingVolumeHierarchy::intersect(Ray& ray, HitInfo& hitInfo, const Featur
                     hv1 = v1;
                     hv2 = v2;
                     
+                    glm::vec3 barc = computeBarycentricCoord(v0.position, v1.position, v2.position, ray.origin + ray.t * ray.direction);
+                    glm::vec2 texC = barc.x * v0.texCoord + barc.y * v1.texCoord + barc.z * v2.texCoord;
+                    hitInfo.barycentricCoord = barc;
+                    hitInfo.texCoord = texC;
                     if (features.enableNormalInterp) { //interpolate normal and update information to draw normals for visual debug
                         
-                        glm::vec3 barc = computeBarycentricCoord(v0.position, v1.position, v2.position, ray.origin + ray.t * ray.direction);
-                        glm::vec2 texC = barc.x * v0.texCoord + barc.y * v1.texCoord + barc.z * v2.texCoord;
-                        hitInfo.barycentricCoord = barc;
-                        hitInfo.texCoord = texC;
+                        
                         glm::vec3 interpolatedNormal = interpolateNormal(v0.normal, v1.normal, v2.normal, barc);
                         hitInfo.normal = normalize(interpolatedNormal);
                         
@@ -486,12 +487,13 @@ bool BoundingVolumeHierarchy::intersectRayNode(Ray& ray, int index, HitInfo& hit
                 hv0 = triangle[0];
                 hv1 = triangle[1];
                 hv2 = triangle[2];
+                glm::vec3 barc = computeBarycentricCoord(m_pScene->meshes[mesh].vertices[v0].position, m_pScene->meshes[mesh].vertices[v1].position, m_pScene->meshes[mesh].vertices[v2].position, ray.origin + ray.t * ray.direction);
+                glm::vec2 texC = barc.x * m_pScene->meshes[mesh].vertices[v0].texCoord + barc.y * m_pScene->meshes[mesh].vertices[v1].texCoord + barc.z * m_pScene->meshes[mesh].vertices[v2].texCoord;
+                hitInfo.barycentricCoord = barc;
+                hitInfo.texCoord = texC;
                 if (features.enableNormalInterp) { // interpolate normal and update information to draw normals for visual debug
                     
-                    glm::vec3 barc = computeBarycentricCoord(m_pScene->meshes[mesh].vertices[v0].position, m_pScene->meshes[mesh].vertices[v1].position, m_pScene->meshes[mesh].vertices[v2].position, ray.origin + ray.t * ray.direction);
-                    glm::vec2 texC = barc.x * m_pScene->meshes[mesh].vertices[v0].texCoord + barc.y * m_pScene->meshes[mesh].vertices[v1].texCoord + barc.z * m_pScene->meshes[mesh].vertices[v2].texCoord;
-                    hitInfo.barycentricCoord = barc;
-                    hitInfo.texCoord = texC;
+                    
                     glm::vec3 interpolatedNormal = interpolateNormal(m_pScene->meshes[mesh].vertices[v0].normal, m_pScene->meshes[mesh].vertices[v1].normal, m_pScene->meshes[mesh].vertices[v2].normal, barc);
                     hitInfo.normal = normalize(interpolatedNormal);
                     
