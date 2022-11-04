@@ -9,6 +9,7 @@
 #include <screen.cpp>
 #include <queue>
 
+
 /*** Helper functions ***/
 
 
@@ -78,7 +79,10 @@ void rootNodeHelper(Scene* pScene, std::vector<int> & indexes, std::vector<std::
 /* findMeans - create vector means that holds the means of triangles in pScene at each index along a specific dimension.
  *  Inputs:
  *   - pScene - pointer to the scene
- *   - indexes -
+ *   - indexes - vector holding the indexes of the triangles.
+ *   - dimension - integer indicating the dimension along which to find the mean.
+ *  Outputs:
+ *   - means - vector holding the centroids of all triangles.
  */
 std::vector<float> findMeans(Scene* pScene, std::vector<int>& indexes, int dimension)
 {
@@ -248,8 +252,6 @@ int BoundingVolumeHierarchy::getMaxTrianglesPerLeaf() {
 BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
     : m_pScene(pScene)
 {
-    clock_t time = clock();
-
     // Create root node containing all triangles in the scene and an AABB for the entire scene, set to false to indicate it's a leaf node.
     std::vector<int> indexes;
     std::vector<std::vector<float>> bounds;
@@ -263,12 +265,6 @@ BoundingVolumeHierarchy::BoundingVolumeHierarchy(Scene* pScene)
 
     // Recursively create the BVH.
     growBVH(0,0);
-
-    std::cout << "BVH creation required " << (float)(clock() - time) / CLOCKS_PER_SEC << " s.\n";
-    std::cout << "Model number: " << pScene->type << "\n";
-    std::cout << "Number of triangles: " << indexes.size() / 2 << "\n";
-    std::cout << "BVH levels: " << this->m_numLevels << "\n";
-    std::cout << "Maximum triangles per node: " << this->getMaxTrianglesPerLeaf() << "\n\n";
 }
 
 // Return the depth of the tree that you constructed. This is used to tell the
