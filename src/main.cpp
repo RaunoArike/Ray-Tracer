@@ -180,6 +180,11 @@ int main(int argc, char** argv)
                     }
                 }
                 ImGui::Checkbox("Depth of field", &config.features.extra.enableDepthOfField);
+                if (config.features.extra.enableDepthOfField) {
+                    ImGui::SliderFloat("f", &config.features.extra.enableDepthOfFieldF, 1.0f, 10.0f);
+                    ImGui::SliderFloat("Aperture", &config.features.extra.enableDepthOfFieldAperture, 0.0f, 0.1f);
+                    ImGui::SliderInt("Number of samples", &config.features.extra.enableDepthOfFieldSampleCount, 0, 64);
+                }
             }
             ImGui::Separator();
 
@@ -348,12 +353,12 @@ int main(int argc, char** argv)
                     drawSceneOpenGL(scene);
                 }
                 if (optDebugRay) {
-                    // Call getFinalColor for the debug ray. Ignore the result but tell the function that it should
+                    // Call depthOfFieldCalc for the debug ray. Ignore the result but tell the function that it should
                     // draw the rays instead.
                     enableDebugDraw = true;
                     glDisable(GL_LIGHTING);
                     glDepthFunc(GL_LEQUAL);
-                    (void)getFinalColor(scene, bvh, *optDebugRay, config.features);
+                    (void)depthOfFieldCalc(scene, bvh, *optDebugRay, config.features, camera, screen);
                     enableDebugDraw = false;
                 }
                 glPopAttrib();

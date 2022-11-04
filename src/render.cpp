@@ -3,6 +3,8 @@
 #include "light.h"
 #include "screen.h"
 #include <framework/trackball.h>
+#include <iostream>
+#include <random>
 #define EPSILON 0.0000001
 #define MAX_DEPTH 20
 #ifdef NDEBUG
@@ -71,7 +73,52 @@ void renderRayTracing(const Scene& scene, const Trackball& camera, const BvhInte
                 float(y) / float(windowResolution.y) * 2.0f - 1.0f
             };
             const Ray cameraRay = camera.generateRay(normalizedPixelPos);
-            screen.setPixel(x, y, getFinalColor(scene, bvh, cameraRay, features));
+            screen.setPixel(x, y, depthOfFieldCalc(scene, bvh, cameraRay, features, camera, screen));
         }
+    }
+}
+
+// returns a random number from a uniform distribution
+float randNr(float range_start, float range_end)
+{
+    std::random_device rand_dev;
+    std::mt19937 generator(rand_dev());
+    std::uniform_real_distribution<float> distribution(range_start, range_end);
+    return distribution(generator);
+}
+
+glm::vec3 depthOfFieldCalc(const Scene& scene, const BvhInterface& bvh, const Ray& ray, const Features& features, const Trackball& camera, Screen& screen)
+{
+    if (features.extra.enableDepthOfField) {
+        auto focalLength = features.extra.enableDepthOfFieldF;
+        auto aperture = features.extra.enableDepthOfFieldAperture;
+        auto sampleCount = features.extra.enableDepthOfFieldSampleCount;
+        
+        auto focalPoint = ray.origin + focalLength * ray.direction;
+        glm::vec3 color { 0.0f };
+
+        for (int i = 0; i < sampleCount; i++) {
+            // finding a random point on the aperture
+            auto vecToPoint = glm::normalize(randNr(0.0f, 1.0f) * camera.up() + randNr(0.0f, 1.0f) * camera.left()) * aperture;
+            vecToPoint.x = randNr(-1.0f, 1.0f) * vecToPoint.x;
+            vecToPoint.y = randNr(-1.0f, 1.0f) * vecToPoint.y;
+            vecToPoint.z = randNr(-1.0f, 1.0f) * vecToPoint.z;
+            // vector from the origin of the camera ray to the randomly chosen point on the aperture
+            auto startingPoint = ray.origin + vecToPoint;
+            auto direction = glm::normalize(focalPoint - startingPoint);
+            // ray from the point on the aperture to the focal point
+            auto apertureRay = Ray { startingPoint, direction };
+            color += getFinalColor(scene, bvh, apertureRay, features);
+        }
+
+        // average the result from all samples
+        auto avgColor = color / float(sampleCount);
+
+        // show the focal point for visual debug
+        drawRay(Ray { ray.origin, ray.direction, focalLength }, avgColor);
+
+        return avgColor;
+    } else {
+        return getFinalColor(scene, bvh, ray, features);
     }
 }
