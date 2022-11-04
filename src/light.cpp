@@ -119,7 +119,7 @@ glm::vec3 computeLightContribution(const Scene& scene, const BvhInterface& bvh, 
                 glm::vec3 samplePos { 0.0f };
                 glm::vec3 sampleColor { 0.0f };
                 if (features.enableSoftShadow) {
-                    float segment_sample_size = 40;
+                    float segment_sample_size = 50;
                     for (int i = 0; i < segment_sample_size; i++) {
                         // calculate sample position and color
                         sampleSegmentLight(segmentLight, samplePos, sampleColor);
@@ -134,7 +134,7 @@ glm::vec3 computeLightContribution(const Scene& scene, const BvhInterface& bvh, 
                 glm::vec3 samplePos { 0.0f };
                 glm::vec3 sampleColor { 0.0f };
                 if (features.enableSoftShadow) {
-                    float paral_sample_size = 100;
+                    float paral_sample_size = 500;
                     for (int i = 0; i < paral_sample_size; i++) {
                         // calculate sample position and color
                         sampleParallelogramLight(parallelogramLight, samplePos, sampleColor);
