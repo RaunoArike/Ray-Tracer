@@ -151,6 +151,11 @@ int main(int argc, char** argv)
                 ImGui::Checkbox("Glossy reflections", &config.features.extra.enableGlossyReflection);
                 ImGui::Checkbox("Transparency", &config.features.extra.enableTransparency);
                 ImGui::Checkbox("Depth of field", &config.features.extra.enableDepthOfField);
+                if (config.features.extra.enableDepthOfField) {
+                    ImGui::SliderFloat("f", &config.features.extra.enableDepthOfFieldF, 1.0f, 10.0f);
+                    ImGui::SliderFloat("Aperture", &config.features.extra.enableDepthOfFieldAperture, 0.0f, 0.1f);
+                    ImGui::SliderInt("Number of samples", &config.features.extra.enableDepthOfFieldSampleCount, 0, 64);
+                }
             }
             ImGui::Separator();
 
